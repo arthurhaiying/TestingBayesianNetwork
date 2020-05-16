@@ -39,7 +39,7 @@ distributions  (the number of distributions equals the batch size).
 class TAC:
     
     # only first three parameters can be positional, everything else is keyword
-    def __init__(self,tbn,inputs,output,*,hard_inputs=[],trainable=False,
+    def __init__(self,tbn,inputs,output,*,sel_type='linear',hard_inputs=[],trainable=False,
                     elm_method='minfill',elm_wait=30,profile=False):
 
         u.input_check(all(tbn.is_node_name(i) for i in inputs),
@@ -52,11 +52,13 @@ class TAC:
             'TAC inputs cannot be empty')
         u.input_check(output not in inputs,
             'TAC output cannot be one of its inputs')
+        u.input_check(sel_type in ('linear', 'threshold', 'sigmoid'), 'Invalid selection type')
         
         # inputs are names of tbn nodes
         # output is name of tbn node
         self.trainable        = trainable # whether tac parameters can be trained
         self.profile          = profile   # saves tac and profiles time
+        self.sel_type         = sel_type  # save selection methold type
         self.tbn              = None      # copy prepared for inference
         self.input_nodes      = None      # tac input (tbn nodes)
         self.output_node      = None      # tac output (tbn node)

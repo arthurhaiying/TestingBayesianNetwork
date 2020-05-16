@@ -42,8 +42,9 @@ class Var:
 
 class OpsGraph:
 
-    cpt_types  = ('cpt','cpt1','cpt2')
+    cpt_types  = ('cpt','cpt1','cpt2', 'thres')
     op_types   = ('m','p','mp','n','s','c')
+    DEFAULT_GAMMA_VALUE = 1000
     
     def __init__(self,trainable,testing):
         self.trainable        = trainable # whether includes trainable CPTs
@@ -51,6 +52,7 @@ class OpsGraph:
         self.ops              = []   # list of all operations 
         self.evidence_vars    = None # tuple of evidence vars ordered as tac constructor
         self.train_cpt_labels = []   # for saving learned cpts with appropriate labels
+        self.train_gamma_labels = [] # for saving learned gammas with appropriate labels
         self.scale_after_M    = 5    # scale after M multiplications to avoid underflows
                                      # scaling is critical for learning
                                    
@@ -68,6 +70,9 @@ class OpsGraph:
         
         # dictionaries for implementing tied cpts: maps tie_id to op 
         self.tied_cpt_op = {t:{} for t in OpsGraph.cpt_types}
+
+        # dictionary for implementing tied gammas: map gamma_id to op
+        self.tied_gamma_op = {}
         
         # dictionary for caching vars (so we have a unique var for each tbn node)
         self.vars = {}
@@ -196,8 +201,12 @@ class OpsGraph:
     # assumes (1) cpt matches orders of tbn nodes in family
     #         (2) family is sorted
     #         (3) var has largest id in family (last dimension in cpt)
-    def add_selected_cpt_op(self,node,cpt1_op,cpt2_op,posterior):
+    def add_selected_cpt_op(self,node,cpt1_op,cpt2_op,posterior,threshold_op=None,sel_type='linear',gamma_op=None):
         assert isinstance(cpt1_op,ops.CptOp) and isinstance(cpt2_op,ops.CptOp)
+        if threshold_op is not None:
+            assert isinstance(threshold_op, ops.CptOp)
+        if gamma_op is not None:
+            assert isinstance(gamma_op, ops.GammaOp) or isinstance(gamma_op, ops.RefGammaOp)
         assert node not in self.selected_cpt_ops
         self.selected_cpt_ops.add(node)
         nodes     = set(node.family)
@@ -205,7 +214,7 @@ class OpsGraph:
         vars      = self.nodes2vars(nodes,add_batch)
         var       = vars[-1]            # dimension of var
         assert node.id == var.id        # var has last dimension in cpt
-        op = ops.SelectCptOp(var,cpt1_op,cpt2_op,posterior,vars)
+        op = ops.SelectCptOp(var,cpt1_op,cpt2_op,posterior,vars,threshold=threshold_op, sel_type=sel_type,gamma=gamma_op)
         self.ops.append(op)
         return op
         
@@ -213,6 +222,7 @@ class OpsGraph:
     # assumes (1) cpt matches orders of tbn nodes in family 
     #         (2) family is sorted
     #         (3) var has largest id in family (last dimension in cpt)
+    #             except that threshold type cpt does not have var
     def add_cpt_op(self,node,cpt,cpt_type):
         assert isinstance(cpt,ndarray) 
         assert cpt_type in OpsGraph.cpt_types
@@ -223,6 +233,8 @@ class OpsGraph:
         vars   = self.nodes2vars(nodes,add_batch=False)
         var    = vars[-1]                    # dimension of var
         assert node.id == var.id             # var has last dimension in cpt
+        if cpt_type == 'thres':
+            vars = vars[:-1]
         assert self.shape(vars) == cpt.shape # cpt matches ordered family
         
         # returns an op for a fixed or trainable cpt
@@ -273,7 +285,66 @@ class OpsGraph:
         op   = ops.EvidenceOp(var,vars)
         self.ops.append(op)
         return op
-            
+    
+    def add_gamma_op(self,node,value,gamma_opt):
+        if value is None:
+            value = OpsGraph.DEFAULT_GAMMA_VALUE # initialize gamma to 1000 if not specified
+        var = self.nodes2vars([node], add_batch=False)[0]
+        assert var.id == node.id
+        if not self.trainable: 
+            op = ops.GammaOp(var,value,trainable=False) # only for inference
+            self.ops.append(op)
+            return op
+
+        tie_id = node.cpt_tie
+        def get_gamma_label():
+            if gamma_opt == 'global':
+                label = 'gamma: global'
+            elif gamma_opt == 'free' or tie_id is None:
+                parents_str = u.unpack(node.parents,'name')
+                label = f'gamma: {node.name} | {parents_str}'
+            elif gamma_opt == 'tied':
+                # the gamma is indeed tied
+                parents_str = u.unpack(node.parents,'name')
+                label = f'gamma (tie_id {tie_id}): {node.name} | {parents_str}'
+            return label
+            # return gamma label
+        
+        if gamma_opt == 'global':
+            if 'global' in self.tied_gamma_op:
+                tied_op = self.tied_gamma_op['global']
+                op = ops.RefGammaOp(var,tied_op)
+                # referencing the global gamma op
+            else:
+                # first time
+                op = ops.GammaOp(var,value,trainable=True)
+                self.tied_gamma_op['global'] = op
+                label = get_gamma_label()
+                self.train_gamma_labels.append(label)
+                # create a gamma op shared by all tbn nodes
+        elif gamma_opt == 'free' or tie_id is None:
+            op = ops.GammaOp(var,value,trainable=True)
+            label = get_gamma_label()
+            self.train_gamma_labels.append(label)
+            # create a new gamma op for this tbn node
+        elif gamma_opt == 'tied':
+            # create a tied gamma op
+            if tie_id in self.tied_gamma_op:
+                tied_op = self.tied_gamma_op[tie_id]
+                op = ops.RefGammaOp(var,tied_op)
+                # referencing the tied gamma op
+            else:
+                # first time
+                op = ops.GammaOp(var,value,trainable=True)
+                self.tied_gamma_op[tie_id] = op
+                label = get_gamma_label()
+                self.train_gamma_labels.append(label)
+        # return the gamma op for selected cpt
+        self.ops.append(op)
+        return op
+
+
+
            
     """ OpsGraph stats """
     def print_stats(self): 
@@ -290,6 +361,7 @@ class OpsGraph:
             elif  op_type == ops.EvidenceOp:  ec  += 1
             elif  op_type == ops.FixedCptOp:  fc  += 1
             elif  op_type == ops.TrainCptOp:  tc  += 1
+            elif  op_type == ops.GammaOp or op_type == ops.RefGammaOp: pass
             else: assert op_type in (ops.BatchSizeOp, ops.ScalarOp)
                 
         rate = self.hits*100/self.lookups if self.lookups > 0 else 0

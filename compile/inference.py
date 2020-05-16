@@ -53,8 +53,10 @@ def trace(query_var,evidence_vars,tbn,jt,og):
     qcontext = prune.for_node_posterior(query_var,evidence_vars,tbn)
     
     # add ops that will create tensors for selected cpts (if any)
+    sel_type = tbn.get_select_type()
+    gamma_opt = tbn.get_gamma_option()
     for var in qcontext.testing_nodes:       # top-down
-        __selected_cpt(var,qcontext,jt,og)   # also prunes
+        __selected_cpt(var,qcontext,sel_type,jt,og,gamma_opt=gamma_opt)   # also prunes
         
     # add ops that will create tensor for the posterior over query_node
     __node_posterior(query_var,qcontext,jt,og)
@@ -76,7 +78,7 @@ def trace(query_var,evidence_vars,tbn,jt,og):
 Adds ops that construct a tensor for the selected cpt of tbn node.
 """
 
-def __selected_cpt(var,qcontext,jt,og): # var is a tbn node
+def __selected_cpt(var,qcontext,sel_type,jt,og,gamma_opt=None): # var is a tbn node
     assert var.testing
     assert jt.lookup_sel_cpt_op(var) is None
     
@@ -88,7 +90,19 @@ def __selected_cpt(var,qcontext,jt,og): # var is a tbn node
     
     cpt1_op    = og.add_cpt_op(var,var.cpt1,'cpt1')
     cpt2_op    = og.add_cpt_op(var,var.cpt2,'cpt2')
-    sel_cpt_op = og.add_selected_cpt_op(var,cpt1_op,cpt2_op,ppost_op)
+    if sel_type == 'linear':
+        sel_cpt_op = og.add_selected_cpt_op(var,cpt1_op,cpt2_op,ppost_op)
+    elif sel_type == 'threshold':
+        threshold_op = og.add_cpt_op(var,var.threshold,'thres')
+        sel_cpt_op = og.add_selected_cpt_op(var,cpt1_op,cpt2_op,ppost_op,threshold_op=threshold_op,sel_type=sel_type)
+    elif sel_type == 'sigmoid':
+        threshold_op = og.add_cpt_op(var,var.threshold,'thres')
+        gamma_op = og.add_gamma_op(var,var.gamma,gamma_opt)
+        if gamma_op is None:
+            print("Error No gamma op is created!")
+            exit(1)
+        sel_cpt_op = og.add_selected_cpt_op(var,cpt1_op,cpt2_op,ppost_op,threshold_op=threshold_op,sel_type=sel_type,
+            gamma_op=gamma_op)
     jt.save_sel_cpt_op(var,sel_cpt_op) # cache it, looked up by _cpt_evd()
                 
 

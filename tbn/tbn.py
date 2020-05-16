@@ -16,6 +16,8 @@ class TBN:
         self.name           = name 
         self.nodes          = []    # tbn nodes, parents before children
         self.testing        = False # if any node is testing
+        self.sel_type       = 'linear' # use linear selection by default
+        self.gamma_opt      = 'free'  # if sigmoid selection, use one gamma for each node by default
         self._n2o           = {}    # maps node name to node object
         self._cpt_ties      = {}    # maps cpt_tie to list of tied nodes with that id
         self._decoupling_of = None  # original tbn if this is a decoupled tbn
@@ -61,6 +63,21 @@ class TBN:
         self._n2o[node.name] = node
         self._add_order.append(node)
         self.nodes.append(node)
+
+    # set the cpt selection function used by this tbn
+    def set_select_type(self,type):
+        u.input_check(type in ('linear', 'threshold', 'sigmoid'), "Invalid selection type. Must be linear, threshold, or sigmoid")
+        self.sel_type = type
+
+    def get_select_type(self):
+        return self.sel_type
+
+    def set_gamma_option(self,opt):
+        u.input_check(opt in ('free', 'tied', 'global'), "Invalid selection type. Must be free, tied, or global")
+        self.gamma_opt = opt
+    
+    def get_gamma_option(self):
+        return self.gamma_opt
         
     # returns a node object given a node name
     def node(self,name):
@@ -93,6 +110,10 @@ class TBN:
         assert not self._for_inference
         name = f'{self.name}_inf'
         net  = TBN(name)
+        net.sel_type = self.sel_type
+        if self.sel_type == 'sigmoid' and self.gamma_opt is None:
+            self.gamma_opt = 'free'
+        net.gamma_opt = self.gamma_opt
         net._for_inference = True
         for n in self._add_order: # use exact order in which nodes were added
             m = n.copy_for_inference(net)

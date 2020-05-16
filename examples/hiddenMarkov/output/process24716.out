@@ -1,0 +1,53 @@
+
+Compiling BN into AC
+  Decoupling tbn:
+    elm order: cls (2.0 2), cls sum (6.3 78), vars 20, time 0.001 sec
+    nothing to decouple
+  View ranks : cls (2.0 2 7.19), sep (2.0 2 6.73)
+  Tracing posterior for 'h_9':
+    og-cache lookups 37, hits 0, rate 0.0%
+    selected cpts: all 0, live 0
+    single-value nodes: 0
+    pruned nodes: 0, percentage 0.0%
+  OpsGraph ops count 71:
+    mulpro 8, mul 21, pro 11, norm 1, scale 0
+    cpt trained 3, fixed 0, reference 17, selection 0
+    evidence 10
+  Constructing TacGraph: tac...metrics...optimizer...
+    tac size 298, ops count 158
+      arithmetic (s 121, c 42), reshape (s 0, c 28), transpose (s 0, c 0)
+      binary rank 2.0, rank 3 (for separators)
+    metrics size 107
+    optimizer size 380
+Compile Time: 11.834 sec
+
+Compiling TBN into TAC
+  Decoupling tbn:
+    elm order: cls (2.0 2), cls sum (6.3 78), vars 20, time 0.001 sec
+    nothing to decouple
+  View ranks : cls (2.0 2 7.19), sep (2.0 2 6.73)
+  Tracing posterior for 'h_9':
+    og-cache lookups 54, hits 13, rate 24.1%
+    selected cpts: all 9, live 9
+    single-value nodes: 0
+    pruned nodes: 0, percentage 0.0%
+  OpsGraph ops count 121:
+    mulpro 8, mul 25, pro 11, norm 10, scale 1
+    cpt trained 5, fixed 0, reference 33, selection 9
+    evidence 10
+  Constructing TacGraph: tac...Use sigmoid selection for var: 61
+Use sigmoid selection for var: 62
+Use sigmoid selection for var: 63
+Use sigmoid selection for var: 64
+Use sigmoid selection for var: 65
+Use sigmoid selection for var: 66
+Use sigmoid selection for var: 67
+Use sigmoid selection for var: 68
+Use sigmoid selection for var: 69
+metrics...optimizer...
+    tac size 612, ops count 320
+      arithmetic (s 249, c 93), reshape (s 0, c 34), transpose (s 0, c 0)
+      binary rank 2.0, rank 3 (for separators)
+    metrics size 135
+    optimizer size 688
+Compile Time: 5.454 sec

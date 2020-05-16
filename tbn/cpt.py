@@ -27,6 +27,11 @@ def random(card,cards):
     else:
         cpt = [random(card,cards[1:]) for _ in range(cards[0])]
         return np.array(cpt)
+
+# return a random marginal cpt over nodes with cardinalities cards
+def random2(cards):
+    cpt = np.random.rand(*cards)
+    return cpt / np.sum(cpt) # normalize
       
       
 # -expands a cpt specified by a list or python function into np array 
@@ -46,7 +51,7 @@ def expand(node,cpt,cpt_type):
             assert fn_type == 'constraint'
             cpt = __expand_ccpt(node,cpt,node.parents)
     else:
-        u.check(type(cpt) is np.array,
+        u.check(type(cpt) is np.ndarray,
             f'{cpt_type} of node {node.name} is not a list, np array or python function:\n  {cpt}',
             f'specifying TBN cpt')
             

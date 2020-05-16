@@ -1,7 +1,9 @@
 import examples.digits.play as dplay
 import examples.networks.play as nplay
 import examples.rectangles.play as rplay
-from examples.hiddenMarkov.experiment import *
+import examples.hiddenMarkov.HMMExperiment as experiment
+import examples.hiddenMarkov.TestingHMM as thmm
+import examples.hiddenMarkov.HMMRuntime as HMM
 
 def play():
     
@@ -11,6 +13,8 @@ def play():
     #nplay.train_fn2(size=8, card=3)
     #validateHMM(30, 2, 10)
     print("Start experiment for HMM")
+    #validateHMM(20, 2, 2)
+    '''
     validateHMM(10, 2, 1)
     validateHMM(20, 2, 1)
     validateHMM(30, 2, 1)
@@ -19,6 +23,23 @@ def play():
     validateThirdOrderHMM(30, 2, 1)
     validateThirdOrderHMM(50, 2, 1)
     validateThirdOrderHMM(80, 2, 1)
+    '''
+    #thmm.play()
+    '''
+    thmm.validateTestingHMM(5,2,num_examples=5)
+    thmm.validateTestingHMM(10,3,num_examples=5)
+    thmm.validateTestingHMM(20,2,num_examples=5)
+    thmm.validateTestingHMM(30,3,num_examples=5)
+    thmm.validateTestingHMM(40,2,num_examples=5)
+    '''
+
+
+
+    #thmm.testTBN()
+    #thmm.test_training(10,2,num_examples=2000)
+    #experiment.test_cross_validate(10,2,2)
+    if __name__ == '__main__':
+        HMM.run_master(size=10,card=2,order=3)
 
 
     """ rectangles: see rectangles/play.py for what the functions below do"""

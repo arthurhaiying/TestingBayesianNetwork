@@ -13,20 +13,20 @@ A node must be constructed after its parents have been constructed.
 class Node:
     
     ID        = count() # for generating node IDs
-    cpt_types = ('cpt','cpt1','cpt2')
+    cpt_types = ('cpt','cpt1','cpt2','thres')
     
     # user attributes are ones that can be specified by the user when constructing node
     user_attributes = ('name','values','parents','testing','fixed_cpt','fixed_zeros',
-                        'cpt_tie','functional','cpt','cpt1','cpt2')
+                        'cpt_tie','functional','cpt','cpt1','cpt2','threshold','gamma')
             
     # only node name is position, everything else is keyword only (* as third argument)
     def __init__(self, name, *, values=(True,False), parents=[], functional=None, 
                     fixed_cpt=False, fixed_zeros=False, testing=None, cpt_tie=None,
-                    cpt=None, cpt1=None, cpt2=None):
+                    cpt=None, cpt1=None, cpt2=None, threshold=None, gamma=None):
 
         # copy potentially mutable arguments in case they get changed by the user
-        values, parents, cpt, cpt1, cpt2 = \
-            copy(values), copy(parents), copy(cpt), copy(cpt1), copy(cpt2)
+        values, parents, cpt, cpt1, cpt2, threshold = \
+            copy(values), copy(parents), copy(cpt), copy(cpt1), copy(cpt2), copy(threshold)
         # other arguments are immutable so no need to copy them
         
         # check integrity of arguments
@@ -62,8 +62,8 @@ class Node:
             f'node cpt cannot be tied if it is also fixed')
         u.input_check(not (fixed_zeros and cpt_tie),
             f'node cpt cannot be tied if it has fixed zeros')
-        u.input_check(cpt is None or (cpt1 is None and cpt2 is None),
-            f'node cannot have both cpt and cpt1/cpt2')
+        u.input_check(cpt is None or (cpt1 is None and cpt2 is None and threshold is None),
+            f'node cannot have both cpt and cpt1/cpt2/threshold')
         u.input_check((cpt1 is None) == (cpt2 is None),
             f'node cpt1 and cpt2 must both be specified if the node is testing')
         
@@ -88,6 +88,10 @@ class Node:
         if testing and cpt1 is None:
             cpt1 = tbn.cpt.random(card,cards)
             cpt2 = tbn.cpt.random(card,cards)
+
+        if testing and threshold is None:
+            threshold = tbn.cpt.random2(cards)
+
         if not testing and cpt is None:
             cpt  = tbn.cpt.random(card,cards)
             
@@ -107,6 +111,8 @@ class Node:
         self._cpt         = cpt           # becomes np array
         self._cpt1        = cpt1          # becomes np array
         self._cpt2        = cpt2          # becomes np array
+        self._threshold   = threshold     # becomes np array
+        self._gamma       = gamma         
         self._cpt_tie     = cpt_tie       # tied cpts may have different shapes after pruning
         
         # derived attributes that may also change when preparing for inference
@@ -158,6 +164,10 @@ class Node:
     def cpt1(self):        return self._cpt1
     @property
     def cpt2(self):        return self._cpt2
+    @property
+    def threshold(self):   return self._threshold
+    @property
+    def gamma(self):   return self._gamma
     @property
     def cpt_label(self):   return self._cpt_label
     @property
@@ -316,12 +326,11 @@ class Node:
     # sort family and reshape cpt accordingly (important for ops_graph)
     def __sort(self):
         assert type(self.parents) is list and type(self.family) is list
-        
         if u.sorted(u.map('id',self.family)): # already sorted
             self._parents = tuple(self.parents)
             self._family  = tuple(self.family)
             return
-        
+
         self._parents.sort()
         self._parents = tuple(self.parents)
         
@@ -336,6 +345,10 @@ class Node:
         if self.testing:
             self._cpt1 = np.transpose(self.cpt1,sorted_axes)
             self._cpt2 = np.transpose(self.cpt2,sorted_axes)
+            self._threshold = np.transpose(self.threshold, sorted_axes[:-1])
+            print("Sort node {}".format(self.name))
+            print("cpt size {}".format(self._cpt1.shape))
+            print("threshold size {}".format(self.threshold.shape))
         else:
             self._cpt  = np.transpose(self.cpt,sorted_axes)
 
@@ -355,5 +368,6 @@ class Node:
         if self.testing:
             set_label(self.cpt1,'cpt1')
             set_label(self.cpt2,'cpt2')
+            set_label(self.threshold, 'thres')
         else:
             set_label(self.cpt,'cpt')

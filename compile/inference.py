@@ -98,9 +98,6 @@ def __selected_cpt(var,qcontext,sel_type,jt,og,gamma_opt=None): # var is a tbn n
     elif sel_type == 'sigmoid':
         threshold_op = og.add_cpt_op(var,var.threshold,'thres')
         gamma_op = og.add_gamma_op(var,var.gamma,gamma_opt)
-        if gamma_op is None:
-            print("Error No gamma op is created!")
-            exit(1)
         sel_cpt_op = og.add_selected_cpt_op(var,cpt1_op,cpt2_op,ppost_op,threshold_op=threshold_op,sel_type=sel_type,
             gamma_op=gamma_op)
     jt.save_sel_cpt_op(var,sel_cpt_op) # cache it, looked up by _cpt_evd()

@@ -17,22 +17,27 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 
 class HiddenMarkovModel:
 
-    def __init__(self, size, card, order=1, testing=False, param=False, transition1=None, transition2=None, emission=None, threshold=None,sel_type='linear',gamma_opt=None):
+    def __init__(self, size, card, order=1, testing=False, evid_card=None, inputs=None, output=None, param=False, 
+        transition1=None, transition2=None, emission=None, threshold=None,sel_type='linear',gamma_opt=None,default_gamma=1000):
         # create a testing HMM model
         assert order >= 1 and card >= 2
         assert size >= order
         self.size = size
         self.card = card
+        if evid_card is None:
+            evid_card = card
+        self.evid_card = evid_card
         self.order = order
         self.testing = testing
         self.sel_type = sel_type
         self.gamma_opt = gamma_opt
+        self.default_gamma = default_gamma
         # specify cpt selection method
         # initialize HMM size parameters
         if param:
             # if a parameterization provided for this HMM
             u.input_check(np.array(transition1).shape == (card,)*(order+1), "wrong size for transition matrix")
-            u.input_check(np.array(emission).shape == (card, card), "wrong size for emission matrix")
+            u.input_check(np.array(emission).shape == (card, evid_card), "wrong size for emission matrix")
             if testing:
                 # also check transition2 
                 u.input_check(np.array(transition2).shape == (card,)*(order+1), "wrong size for transition2 matrix")
@@ -44,23 +49,25 @@ class HiddenMarkovModel:
         self.transition2 = transition2
         self.emission = emission
         self.threshold = threshold
-        self._tbn = self.__getHMMNet(size, card, order, testing, transition1, transition2, emission, threshold)
+        self._tbn = self.__getHMMNet(size, card, evid_card, order, testing, transition1, transition2, emission, threshold, default_gamma)
         self._tbn.set_select_type(sel_type)
         if gamma_opt is not None:
             self._tbn.set_gamma_option(gamma_opt)
-        # compile an AC for query Pr(X_n|E[0:n])
-        inputs = ['e_' + str(j) for j in range(size)]
-        output = 'h_' + str(size-1)
-        self._tac_for_inference = TAC(self._tbn, inputs=inputs, output=output,trainable=True)
+        # compile an AC for query Pr(X_n|E[0:n-1])
+        self.inputs = inputs if inputs is not None else ['e_' + str(j) for j in range(size-1)]
+        self.output = output if output is not None else 'h_' + str(size-1)
+        # ask query Pr(X_n|E[0:n-1]) by default
+        self._tac_for_inference = TAC(self._tbn, inputs=self.inputs, output=self.output,trainable=False)
         #logging.info("Finish compileing tac for {}-order thmm of size {}".format(order, size))
         self._tac_for_learning = None
 
     @staticmethod
-    def __getHMMNet(size, card, order, testing, transition1, transition2, emission, threshold):
+    def __getHMMNet(size, card, evid_card, order, testing, transition1, transition2, emission, threshold, gamma):
         # create a testing HMM net of order of size of cardinaility
         tbn = TBN(f'tHMM_{order}_{size}_{card}')
         hiddenNodeCache = []
         values = ['v'+str(i) for i in range(card)]
+        evid_values = ['v'+str(i) for i in range(evid_card)]
         # create first N hidden nodes
         for i in range(order):
             name = 'h_'+str(i)
@@ -75,7 +82,7 @@ class HiddenMarkovModel:
             name = 'h_'+str(i)
             parents = [hiddenNodeCache[j] for j in range(i-order, i)]
             if testing:
-                h_i = Node(name, values=values, parents=parents, testing=True, cpt1=transition1, cpt2=transition2, threshold=threshold,cpt_tie="transition")
+                h_i = Node(name, values=values, parents=parents, testing=True, cpt1=transition1, cpt2=transition2,threshold=threshold,gamma=gamma,cpt_tie="transition")
                 # ToDo: add threshold
             else:
                 h_i = Node(name, values=values, parents=parents, testing=False, cpt=transition1, cpt_tie="transition")
@@ -85,18 +92,20 @@ class HiddenMarkovModel:
         for i in range(size):
             name = 'e_'+str(i)
             parents = [hiddenNodeCache[i]]
-            e_i = Node(name, values=values, parents=parents, testing=False, cpt=emission, cpt_tie="emission")
+            e_i = Node(name, values=evid_values, parents=parents, testing=False, cpt=emission, cpt_tie="emission")
             tbn.add(e_i)
         # finish creating hmm
         #tbn.dot(view=True)
         #logging.info("Finish creating {}-order tHMM of size {}".format(order, size))
         return tbn
 
-    def forward_tac(self, evidence):
-        result = self._tac_for_inference.evaluate(evidence)
+    def forward_tac(self, evidences):
+        u.input_check(len(evidences) == len(self.inputs), "Number of TAC input does not match.")
+        result = self._tac_for_inference.evaluate(evidences)
         return result
 
     def metric(self,evidences,marginals,metric_type):
+        u.input_check(len(evidences) == len(self.inputs), "Number of TAC input does not match.")
         result = self._tac_for_inference.metric(evidences,marginals,metric_type=metric_type)
         print("The testing loss is %.5f" % result)
         return result
@@ -161,15 +170,14 @@ class HiddenMarkovModel:
         marginals = np.array(marginals)
         return evidences, marginals
 
-    def learn(self,evidences,marginals):
-        u.input_check(len(evidences) == self.size-1, "Number of tac inputs does not match.")
-        inputs = ['e_' + str(j) for j in range(self.size-1)]
-        output = 'h_' + str(self.size-1)
+    def learn(self,evidences,marginals,filename=None):
+        u.input_check(len(evidences) == len(self.inputs), "Number of tac inputs does not match.")
         # remember to create a new tac for learning
-        self._tac_for_learning = TAC(self._tbn, inputs=inputs, output=output,trainable=True)
+        if self._tac_for_learning is None:
+            self._tac_for_learning = TAC(self._tbn, inputs=self.inputs, output=self.output,trainable=True)
         #logging.info("Finish compiling tac for learning the forward query")
-        # compile a tac for the purpose of learning forward query
-        self._tac_for_learning.fit(evidences, marginals,loss_type='CE',metric_type='CE')
+        #fit tac for learning the forward query
+        self._tac_for_learning.fit(evidences, marginals,loss_type='CE',metric_type='CE',fname=filename)
         self._tac_for_inference = self._tac_for_learning # use the learned tac for inference
         #logging.info("Finish learning the forward query")
 

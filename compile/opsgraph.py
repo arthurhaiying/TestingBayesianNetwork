@@ -298,7 +298,7 @@ class OpsGraph:
 
         tie_id = node.cpt_tie
         def get_gamma_label():
-            if gamma_opt == 'global':
+            if gamma_opt == 'global' or gamma_opt == 'fixed':
                 label = 'gamma: global'
             elif gamma_opt == 'free' or tie_id is None:
                 parents_str = u.unpack(node.parents,'name')
@@ -310,7 +310,9 @@ class OpsGraph:
             return label
             # return gamma label
         
-        if gamma_opt == 'global':
+        if gamma_opt == 'fixed':
+            op = ops.GammaOp(var,value,trainable=False)
+        elif gamma_opt == 'global':
             if 'global' in self.tied_gamma_op:
                 tied_op = self.tied_gamma_op['global']
                 op = ops.RefGammaOp(var,tied_op)
@@ -343,9 +345,14 @@ class OpsGraph:
         self.ops.append(op)
         return op
 
+    @classmethod
+    def set_default_gamma_value(cls,value):
+        cls.DEFAULT_GAMMA_VALUE = value
 
-
-           
+    @classmethod
+    def get_default_gamma_value(cls):
+        return cls.DEFAULT_GAMMA_VALUE
+   
     """ OpsGraph stats """
     def print_stats(self): 
         mc = pc = mpc = nc = scc = sec = rc = ec = fc = tc = 0

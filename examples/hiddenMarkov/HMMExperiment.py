@@ -9,11 +9,15 @@ import train.data as data
 import tbn.cpt as cpt
 
 # training data settings
+USE_DETERMINISTIC_CPT = 0
 NUM_EXAMPLES = 16384
-STEP_SIZE = 0.05
+STEP_SIZE = 0.2
+TRANSITION_STEP_SIZE = 0.02
+EMISSION_STEP_SIZE = 0.02
 # CPT selection settings
 SELECT_TYPE = 'sigmoid'
-GAMMA_OPTION = 'tied'
+GAMMA_OPTION = 'fixed'
+DEFAULT_GAMMA_VALUE = 1000
 # training settings
 NUM_FOLDS = 5
 
@@ -30,10 +34,12 @@ def enumerate_cpts(card,cards,step_size=0.05):
 
 # generate all distribution of card states with step size
 def enumerate_dist(card,step_size):
-    if card == 2:
+    if USE_DETERMINISTIC_CPT:
         # use almost deterministic cpt
-        yield (0.95,0.05)
-        yield (0.05,0.95)
+        for i in range(card):
+            cpt = [0.05]*card 
+            cpt[i] = 1.0-0.05*(card-1)
+            yield cpt
     else:
         def __enumerate_dist_rec(card,sum,step_size):
             if card == 1:
@@ -45,24 +51,43 @@ def enumerate_dist(card,step_size):
                         head = sum # small trick to include the end
                     for tail in __enumerate_dist_rec(card-1,sum-head,step_size):
                         dist = (head,) + tail
-                    yield dist
-        return __enumerate_dist_rec(card, 1.0, step_size)
+                        yield dist
+        yield from __enumerate_dist_rec(card, 1.0, step_size)
+
+
+def enumerate_transitions1(card,step_size):
+    # enumerate first order transition cpts that simulates a loop
+    # hidden node h_i = k implies h_i+1 = k + 1 with high prob
+    min_pos_rate = 0.8
+    for pos_rate in np.arange(1.0,min_pos_rate-step_size,-step_size):
+        false_pos_rate = (1.0-pos_rate)/(card-1)
+        cpt = np.ones((card,card))*false_pos_rate
+        indices = tuple(range(1,card)) + (0,)
+        cpt[np.arange(card),indices] = pos_rate
+        yield cpt
+
+
+def enumerate_sensors(card, step_size):
+    # enumerate almost deterministic emission cpts
+    min_pos_rate = 0.8
+    for pos_rate in np.arange(1.0,min_pos_rate-step_size,-step_size):
+        false_pos_rate = (1.0-pos_rate)/(card-1)
+        cpt = [[pos_rate if i == j else false_pos_rate for j in range(card)] for i in range(card)]
+        cpt = np.array(cpt)
+        yield cpt
 
 def enumerate_HMM(card,order,step_size):
     # enumerate possible model parameters for n order HMM
     # enumerate tranision prob by step size, use noisy sensor for emission prob
-    non_diag_value = 0.01
-    diag_value = 1-non_diag_value*(card-1)
-    emission_cpt = [[diag_value if i == j else non_diag_value for j in range(card)] for i in range(card)]
-    emission_cpt = np.array(emission_cpt)
     cards = (card,)*order # parant states
-    for transition_cpt in enumerate_cpts(card,cards,step_size):
+    for transition_cpt in enumerate_transitions1(card,TRANSITION_STEP_SIZE):
+        for emission_cpt in enumerate_sensors(card,EMISSION_STEP_SIZE):
         # enumerate transition cpt for node card with parents cards
-        yield (transition_cpt, emission_cpt)
+            yield (transition_cpt, emission_cpt)
 
 
-def direct_sample(size,card,order,transition,emission):
-    # sample data E[0:t-1] and H_t from n order HMM 
+def direct_sample(size,card,order,transition,emission,missing_card):
+    # if not missing card, sample Pr(H_t|E[0:t-1]) otherwise sample Pr(E_t|E[0:t-1])
     u.input_check(np.array(transition).shape == (card,)*(order+1), "wrong size for transition matrix")
     u.input_check(np.array(emission).shape == (card, card), "wrong size for emission matrix")
     # sample the first n nodes
@@ -73,23 +98,27 @@ def direct_sample(size,card,order,transition,emission):
         hiddens.append(h_i)
         evidences.append(e_i)
     # sample the following nodes
-    for i in range(order,size-1):
+    for i in range(order,size):
         parents = hiddens[-order:] # get parent states of h_i
         cond_prob = transition[tuple(parents)]
         h_i = np.random.choice(card,p=cond_prob)  # sample h_i from pr(h_i|h[i-n:i])
         e_i = np.random.choice(card,p=emission[h_i]) # sample e_i from h_i
         hiddens.append(h_i)
         evidences.append(e_i)
-    # now we sample h_t
-    parents = hiddens[-order:]
-    cond_prob = transition[tuple(parents)]
-    h_t = np.random.choice(card,p=cond_prob)  # sample h_i from pr(h_i|h[i-n:i])
-    return evidences, h_t
+    # if missing card, predict the next hidden state, so return E[0:t-1] and h_t
+    if not missing_card:
+        return evidences[:-1],hiddens[-1]
+    else:
+        # otherwise return E[0:t-1] and E[t]
+        return evidences[:-1],evidences[-1]
 
-def direct_sample_training_set(size,card,order,transition,emission,num_trial):
+def direct_sample_training_set(size,card,order,transition,emission,missing_card,num_trial):
+    # if not missing card, sample E[0:t-1] and h_t otherwise sample E[0:t-1] and E_t
     # sample num_examples data from HMM and save them to file
     fields = ['E_'+str(i) for i in range(size-1)]
-    fields.append('H_'+str(size-1))
+    label = 'H_'+str(size-1) if not missing_card else 'E_'+str(size-1)
+    # if not missing card predict the next hidden state otherwise the next evidence
+    fields.append(label)
     evidences, marginals = [],[]
     # save the data in csv file
     dirname = os.path.abspath(os.getcwd())
@@ -99,12 +128,16 @@ def direct_sample_training_set(size,card,order,transition,emission,num_trial):
         writer = csv.writer(f)
         writer.writerow(fields)
         for i in range(NUM_EXAMPLES):
-            evidence,marginal = direct_sample(size,card,order,transition,emission)
+            evidence,marginal = direct_sample(size,card,order,transition,emission,missing_card=missing_card)
             evidences.append(evidence)
             marginals.append(marginal)
             writer.writerow(evidence+[marginal])
             # sample data and save to file
-    return evidences, marginals
+    evidences = reshape_evidence(evidences,[card]*(size-1))
+    marginals = reshape_marginal(marginals,card)
+    # reshape evidence and label for tac inputs
+    return evidences,marginals
+    
 
 # convert evidence into shape num_inputs * num_examples * num_states
 def reshape_evidence(evidences,cards):
@@ -122,6 +155,19 @@ def reshape_evidence(evidences,cards):
     evidences_tac = data.evd_row2col(evidences_tac)
     return evidences_tac
 
+# concatenate list of evidences. Need to concatenate lambda array of each input
+def concate_evidences(evidences):
+    num_inputs = len(evidences[0])
+    result = []
+    for i in range(num_inputs):
+        inputs = tuple([evidence[i] for evidence in evidences])
+        inputs = np.concatenate(inputs)
+        result.append(inputs)
+    return result
+
+def concate_marginals(marginals):
+    return np.concatenate(tuple(marginals))
+
 def reshape_marginal(marginal, card):
     l = []
     for i in marginal:
@@ -131,44 +177,55 @@ def reshape_marginal(marginal, card):
         # convert to one hot label
     return np.array(l)
 
-def cross_validate(hmm,evidences,marginals,num_folds):
-    assert len(evidences) == len(marginals)
-    num_records = len(evidences)
-    num_inputs = len(evidences[0])
+def cross_validate(hmm,evidences,marginals,num_folds,num_trial):
+    # assume that evidences and marginals have been reshaped for tac inputs
+    assert evidences[0].shape[0] == marginals.shape[0]
+    num_records = evidences[0].shape[0]
+    num_inputs = len(evidences)
     assert num_inputs == hmm.size - 1
-    indices = list(range(num_records))
-    random.shuffle(indices)
-    # shuffle the training data set
-    partitions = []
+    evidences, marginals = data.__shuffle(evidences,marginals)
+    # shuffle evidencs and marginals according to indices
+    evid_partitions = []
+    marg_partitions = []
     partition_size = int(num_records/num_folds)
     for start in range(0,num_records,partition_size):
         end = start + partition_size
         if end > num_records:
             end = num_records
-        evid = [evidences[i] for i in indices[start:end]]
-        marg = [marginals[i] for i in indices[start:end]]
-        partitions.append((evid,marg))
+        evid = data.evd_slice(evidences,start,end)
+        marg = marginals[start:end]
+        evid_partitions.append(evid)
+        marg_partitions.append(marg)
         # split the dataset into num_fold partitions
     loss_avg = 0
+    # path to save learned ACs and TACS
+    workdir = os.getcwd()
+    dirname = os.path.join(workdir,'logs','cpts','trial%d'%num_trial)
+    ac_dirname = os.path.join(dirname,'AC')
+    tac_dirname = os.path.join(dirname,'TAC')
+    if not os.path.exists(dirname):
+        try:
+            os.makedirs(ac_dirname)
+            os.makedirs(tac_dirname)
+        except OSError as err:
+            print("Failed to create directory for saving tacs: %s" %str(err))
+            exit(1)
     for i in range(num_folds):
         # for each trial
         print("Start fold {}...".format(i))
-        testing_evid, testing_marg = partitions[i]
-        training_evid, training_marg = [],[]
-        for j, (evid,marg) in enumerate(partitions):
-            if j == i:
-                pass
-            training_evid.extend(evid)
-            training_marg.extend(marg)
-            # prepare the training and testing data
-        training_evid = reshape_evidence(training_evid,[hmm.card]*num_inputs)
-        #print("num evidence is: %d" %len(training_evid))
-        # reshape evidence to tac inputs
-        training_marg = reshape_marginal(training_marg, hmm.card)
-        testing_evid = reshape_evidence(testing_evid,[hmm.card]*num_inputs)
-        testing_marg = reshape_marginal(testing_marg, hmm.card)
+        testing_evid = evid_partitions[i]
+        testing_marg = marg_partitions[i]
+        train_evid_list = evid_partitions[:i] + evid_partitions[i+1:]
+        train_marg_list = marg_partitions[:i] + marg_partitions[i+1:]
+        training_evid = concate_evidences(train_evid_list)
+        training_marg = concate_marginals(train_marg_list)
         # prepare the training and testing dataset
-        hmm.learn(training_evid,training_marg)
+        if hmm.testing:
+            filename = os.path.join(tac_dirname,'TAC_%d.txt'%i)
+        else:
+            filename = os.path.join(ac_dirname,'AC_%d.txt'%i)
+            # save learn cpts to file
+        hmm.learn(training_evid,training_marg,filename=filename)
         loss = hmm.metric(testing_evid,testing_marg,metric_type='CE')
         loss_avg += loss
         print("Finish fold {}...".format(i))
@@ -176,11 +233,12 @@ def cross_validate(hmm,evidences,marginals,num_folds):
     print("The average cross validation loss is %0.5f" % loss_avg)
     return loss_avg
 
+
 def test_cross_validate(size,card,order):
     transition = cpt.random(card, [card]*order)
     emission = cpt.random(card, [card])
     hmm = HiddenMarkovModel(size,card,order=1,testing=True,sel_type=SELECT_TYPE,gamma_opt=GAMMA_OPTION)
-    evidences,marginals = direct_sample_training_set(size,card,order,transition,emission,num_trial='test')
+    evidences,marginals = direct_sample_training_set(size,card,order,transition,emission,missing_card=False,num_trial='test')
     loss = cross_validate(hmm,evidences,marginals,num_folds=NUM_FOLDS)
     
 
@@ -198,49 +256,5 @@ def run_single(size,card,order,transition,emission,queue,num_trial):
     print("Trial {}: the AC loss is {.5f} and the TAC loss is {.5f}".format(num_trial,loss_ac,loss_tac))
     result = (num_trial,loss_ac,loss_tac)
     queue.put(result)
-
 def run_master(size,card,order,num_workers):
     '''
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-        
-    
-    
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
-    
-
-        
-        
-    
-    
-
-

@@ -1,7 +1,9 @@
 from examples.hiddenMarkov.TestingHMM import HiddenMarkovModel
+from examples.hiddenMarkov.HMMData import *
 import numpy as np
 import utils.utils as u
 from itertools import product
+import itertools as iter
 import os.path
 import csv
 import random
@@ -11,79 +13,29 @@ import tbn.cpt as cpt
 # training data settings
 USE_DETERMINISTIC_CPT = 0
 NUM_EXAMPLES = 16384
-STEP_SIZE = 0.2
-TRANSITION_STEP_SIZE = 0.02
+TRANSITION_STEP_SIZE = 0.05
 EMISSION_STEP_SIZE = 0.02
+MUTUAL_INFO_THRESHOLD = 0.5
 # CPT selection settings
 SELECT_TYPE = 'sigmoid'
-GAMMA_OPTION = 'fixed'
-DEFAULT_GAMMA_VALUE = 1000
+GAMMA_OPTION = 'tied'
+DEFAULT_GAMMA_VALUE = 750
+GAMMA_RANGE = [500,750,1000,1500,2000]
 # training settings
 NUM_FOLDS = 5
-
-def enumerate_cpts(card,cards,step_size=0.05):
-    # enumerate all cpts for node card with parents cards
-    if not cards:
-        yield from enumerate_dist(card,step_size)
-    else:
-        card0 = cards[0]
-        sub_cpts = [enumerate_cpts(card, cards[1:], step_size) for _ in range(card0)]
-        for cpt in product(*sub_cpts):
-            cpt = np.array(cpt)
-            yield cpt
-
-# generate all distribution of card states with step size
-def enumerate_dist(card,step_size):
-    if USE_DETERMINISTIC_CPT:
-        # use almost deterministic cpt
-        for i in range(card):
-            cpt = [0.05]*card 
-            cpt[i] = 1.0-0.05*(card-1)
-            yield cpt
-    else:
-        def __enumerate_dist_rec(card,sum,step_size):
-            if card == 1:
-                dist = (sum,)
-                yield dist
-            else:
-                for head in np.arange(0,sum+step_size,step_size):
-                    if head > sum:
-                        head = sum # small trick to include the end
-                    for tail in __enumerate_dist_rec(card-1,sum-head,step_size):
-                        dist = (head,) + tail
-                        yield dist
-        yield from __enumerate_dist_rec(card, 1.0, step_size)
+# test settings
+USE_DEFAULT_GAMMA_VALUE = 0
 
 
-def enumerate_transitions1(card,step_size):
-    # enumerate first order transition cpts that simulates a loop
-    # hidden node h_i = k implies h_i+1 = k + 1 with high prob
-    min_pos_rate = 0.8
-    for pos_rate in np.arange(1.0,min_pos_rate-step_size,-step_size):
-        false_pos_rate = (1.0-pos_rate)/(card-1)
-        cpt = np.ones((card,card))*false_pos_rate
-        indices = tuple(range(1,card)) + (0,)
-        cpt[np.arange(card),indices] = pos_rate
-        yield cpt
-
-
-def enumerate_sensors(card, step_size):
-    # enumerate almost deterministic emission cpts
-    min_pos_rate = 0.8
-    for pos_rate in np.arange(1.0,min_pos_rate-step_size,-step_size):
-        false_pos_rate = (1.0-pos_rate)/(card-1)
-        cpt = [[pos_rate if i == j else false_pos_rate for j in range(card)] for i in range(card)]
-        cpt = np.array(cpt)
-        yield cpt
-
-def enumerate_HMM(card,order,step_size):
+def enumerate_HMM(size,card,order):
     # enumerate possible model parameters for n order HMM
-    # enumerate tranision prob by step size, use noisy sensor for emission prob
-    cards = (card,)*order # parant states
-    for transition_cpt in enumerate_transitions1(card,TRANSITION_STEP_SIZE):
-        for emission_cpt in enumerate_sensors(card,EMISSION_STEP_SIZE):
+    transition_cpts = enumerate_transitions8(size,card,order,threshold=MUTUAL_INFO_THRESHOLD,step_size=TRANSITION_STEP_SIZE)
+    #transition_cpts = enumerate_one_transition()
+    #random.shuffle(transition_cpts)
+    for transition_cpt, mutual_info in transition_cpts:
+        for emission_cpt in enumerate_sensors1(card):
         # enumerate transition cpt for node card with parents cards
-            yield (transition_cpt, emission_cpt)
+            yield (transition_cpt, emission_cpt, mutual_info)
 
 
 def direct_sample(size,card,order,transition,emission,missing_card):
@@ -177,7 +129,7 @@ def reshape_marginal(marginal, card):
         # convert to one hot label
     return np.array(l)
 
-def cross_validate(hmm,evidences,marginals,num_folds,num_trial):
+def cross_validate(hmm,evidences,marginals,num_folds,num_trial,tac_name):
     # assume that evidences and marginals have been reshaped for tac inputs
     assert evidences[0].shape[0] == marginals.shape[0]
     num_records = evidences[0].shape[0]
@@ -200,16 +152,16 @@ def cross_validate(hmm,evidences,marginals,num_folds,num_trial):
     loss_avg = 0
     # path to save learned ACs and TACS
     workdir = os.getcwd()
-    dirname = os.path.join(workdir,'logs','cpts','trial%d'%num_trial)
-    ac_dirname = os.path.join(dirname,'AC')
-    tac_dirname = os.path.join(dirname,'TAC')
+    dirname = os.path.join(workdir,'logs','cpts','trial%d'%(num_trial,))
+    tac_dirname = os.path.join(dirname,tac_name)
     if not os.path.exists(dirname):
         try:
-            os.makedirs(ac_dirname)
             os.makedirs(tac_dirname)
         except OSError as err:
             print("Failed to create directory for saving tacs: %s" %str(err))
             exit(1)
+    else:
+        os.mkdir(tac_dirname)
     for i in range(num_folds):
         # for each trial
         print("Start fold {}...".format(i))
@@ -220,11 +172,8 @@ def cross_validate(hmm,evidences,marginals,num_folds,num_trial):
         training_evid = concate_evidences(train_evid_list)
         training_marg = concate_marginals(train_marg_list)
         # prepare the training and testing dataset
-        if hmm.testing:
-            filename = os.path.join(tac_dirname,'TAC_%d.txt'%i)
-        else:
-            filename = os.path.join(ac_dirname,'AC_%d.txt'%i)
-            # save learn cpts to file
+        filename = os.path.join(tac_dirname,'%s_%d.txt'%(tac_name,i))
+        # save learn cpts to file
         hmm.learn(training_evid,training_marg,filename=filename)
         loss = hmm.metric(testing_evid,testing_marg,metric_type='CE')
         loss_avg += loss

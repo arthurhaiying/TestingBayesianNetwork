@@ -42,6 +42,11 @@ Three types of "root" tensors are constructed when executing Ops:
     # untrainable variable for holding evidence and the batch size
 """
 
+class WeightVariable:
+    def __init__(self, weights, is_gamma):
+        self.weights = weights
+        self.is_gamma = is_gamma
+
 
 """ Op object (operation) takes tensors as inputs and outputs a tensor when executed """
 class Op:
@@ -115,12 +120,12 @@ class Op:
             elif type(op) is TrainCptOp:
                 op.execute()
                 # the weights of each cpt are grouped together
-                weight_variables.append(op.weight_variables)
+                weight_variables.append(WeightVariable(op.weight_variables,False))
                 fixed_zeros_count += op.fixed_zeros_count
             elif type(op) is GammaOp:
                 if op.trainable: # need to learn gamma 
                     op.build_gamma_variable()
-                    weight_variables.append(op.weight_variables)
+                    weight_variables.append(WeightVariable(op.weight_variables,True))
 #            elif op.static:
 #                op.execute()
         

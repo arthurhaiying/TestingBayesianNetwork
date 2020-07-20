@@ -73,7 +73,7 @@ class TBN:
         return self.sel_type
 
     def set_gamma_option(self,opt):
-        u.input_check(opt in ('free', 'tied', 'global'), "Invalid selection type. Must be free, tied, or global")
+        u.input_check(opt in ('fixed','free','tied','global'), "Invalid gamma type. Must be free, tied, or global")
         self.gamma_opt = opt
     
     def get_gamma_option(self):
@@ -111,8 +111,6 @@ class TBN:
         name = f'{self.name}_inf'
         net  = TBN(name)
         net.sel_type = self.sel_type
-        if self.sel_type == 'sigmoid' and self.gamma_opt is None:
-            self.gamma_opt = 'free'
         net.gamma_opt = self.gamma_opt
         net._for_inference = True
         for n in self._add_order: # use exact order in which nodes were added

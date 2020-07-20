@@ -1,0 +1,17 @@
+11d10
+< 
+13d11
+< 
+15d12
+< 
+26d22
+< 
+75c71
+<     def train(self,evidence,marginals,loss_type,metric_type,batch_size,fname=None):
+---
+>     def train(self,evidence,marginals,loss_type,metric_type,batch_size):
+122,123c118
+<         if fname is None:
+<             fname = paths.cpts / f'{circuit_type}.txt'
+---
+>         fname = paths.cpts / f'{circuit_type}.txt'

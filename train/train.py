@@ -72,7 +72,7 @@ class Trainer:
     """ interface of trainer """
 
     # if batch_size None, batch size is computed based on various factors (see batch.py)
-    def train(self,evidence,marginals,loss_type,metric_type,batch_size):
+    def train(self,evidence,marginals,loss_type,metric_type,batch_size,fname=None):
         assert loss_type in self.loss_types and metric_type in self.metric_types
         
         # split data into training and validation (after randonly shuffling it)
@@ -119,7 +119,8 @@ class Trainer:
             if stop: break 
         
         # restore learned weights and write them to file
-        fname = paths.cpts / f'{circuit_type}.txt'
+        if fname is None:
+            fname = paths.cpts / f'{circuit_type}.txt'
         u.show(f'  writing learned CPTs to {fname}')
         tac_graph.end_training(fname)  
      

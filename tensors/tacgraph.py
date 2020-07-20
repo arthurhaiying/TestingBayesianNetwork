@@ -193,8 +193,8 @@ class TacGraph:
         self.fixed_zeros_count = ops.Op.create_variables(ops_graph)
         # cpt_variables are the weight variables grouped by cpt
         self.weight_variables = []
-        for variables in self.cpt_variables: 
-            self.weight_variables.extend(variables)
+        for cpt_variable in self.cpt_variables: 
+            self.weight_variables.extend(cpt_variable.weights)
         self.weight_variables = tuple(self.weight_variables)
         
     @tf.function
@@ -325,7 +325,11 @@ class TacGraph:
     def assign_random_weights(self):
         # fixed glabal_seed ==> the same weights each time this function is called
         global_seed = randint(0,1000000)
-        for cpt_weights in self.cpt_variables: 
+        for cpt_variable in self.cpt_variables:
+            if cpt_variable.is_gamma:
+                # do not try random weights for gammas
+                continue
+            cpt_weights = cpt_variable.weights
             # 0-mean and 0-std leads to a uniform distribution
             # as std gets smaller, the distribution tends to uniform
             # as std gets larger,  the distribution can become more extreme (not good) 

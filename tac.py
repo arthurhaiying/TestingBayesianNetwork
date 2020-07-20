@@ -168,7 +168,7 @@ class TAC:
     Trains the tac using a labeled dataset.
     Stopping criteria is based on monitoring metric part of the dataset.
     """
-    def fit(self,evidence,marginals,loss_type,metric_type,*,batch_size=32):
+    def fit(self,evidence,marginals,loss_type,metric_type,*,batch_size=32,fname=None):
         evd_size   = data.evd_size(evidence)    # number of examples
         batch_size = min(evd_size,batch_size)   # used batch size
         
@@ -194,7 +194,7 @@ class TAC:
         u.show(f'\nTraining {self.circuit_type}:')
         start_training_time = time.perf_counter()
 
-        epoch_count = self.trainer.train(evidence,marginals,loss_type,metric_type,batch_size)
+        epoch_count = self.trainer.train(evidence,marginals,loss_type,metric_type,batch_size,fname)
                             
         training_time  = time.perf_counter() - start_training_time
         time_per_epoch = training_time/epoch_count

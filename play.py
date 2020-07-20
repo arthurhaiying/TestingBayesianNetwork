@@ -38,10 +38,7 @@ def play():
     #thmm.testTBN()
     #thmm.test_training(10,2,num_examples=2000)
     #experiment.test_cross_validate(10,2,2)
-    if __name__ == '__main__':
-        HMM.run_master(size=10,card=2,order=3)
-
-
+    HMM.run_master(size=10,card=5,order=1,missing_card=True,train_card=4)
     """ rectangles: see rectangles/play.py for what the functions below do"""
 
     """ validate """
@@ -118,5 +115,6 @@ def train_digits_all(size,use_bk,tie_parameters):
     #dplay.train_all(size,digs,tries,data_sizes,testing=True,
     #    use_bk=use_bk,tie_parameters=tie_parameters,batch_size=batch_size)
 
-print("Start playing")
-play()
+if __name__ == '__main__':
+    print("Start playing")
+    play()

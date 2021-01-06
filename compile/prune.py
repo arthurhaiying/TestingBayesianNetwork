@@ -74,6 +74,69 @@ class for_node_posterior:
     def has_evidence(self,n):
         return n in self._evidence
 
+
+class for_nodes_posterior:
+
+    def __init__(self,query_nodes,evidence_nodes,tbn):
+        self._pruned   = None # set of pruned nodes
+        self._evidence = None # set of unpruned evidence nodes
+        
+        # find nodes connected to query in network
+        connected = set()
+        for query_node in query_nodes:
+            connected |= self.__connected_nodes(query_node)
+        evidence  = set(evidence_nodes) & connected
+        
+        # prune (nodes not in active are pruned)
+        # initialize active to query node and connected evidence nodes
+        active = set(evidence)
+        for query_node in query_nodes:
+            active.add(query_node)
+
+        # traverse bottom up, activating parents of active nodes
+        for n in reversed(tbn.nodes): # bottom-up
+            if n in active:
+                for p in n.parents: active.add(p)
+
+        # find nodes connected to query after pruning
+        # prune nodes that are not connected to query in pruned network
+        connected = set()
+        for query_node in query_nodes:
+            connected |= self.__connected_nodes(query_node,active)
+        evidence      &= connected
+        active        &= connected
+        self._evidence = evidence
+        self._pruned   = set(tbn.nodes) - active
+
+        # exposed by context
+        # nodes and testing_nodes are sorted: parents before children
+        self.nodes         = tuple(n for n in tbn.nodes if n in active)
+        self.testing_nodes = tuple(n for n in self.nodes if n.testing)
+        self.live_count    = 0 # updated when pruning for selection
+        assert not self.testing_nodes or len(self.nodes) >= 2
+        
+    # returns _active_ nodes connected to node (as a set)
+    def __connected_nodes(self,node,active_nodes='all'):
+        visited = set()
+        def visit(n):
+            if n in visited: return
+            visited.add(n)
+            for p in n.parents:  
+                if active_nodes=='all' or p in active_nodes: visit(p)
+            for c in n.children: 
+                if active_nodes=='all' or c in active_nodes: visit(c)
+        visit(node)     
+        return visited
+        
+    """ public functions """
+    
+    def is_pruned(self,n):
+        return n in self._pruned
+        
+    def has_evidence(self,n):
+        return n in self._evidence
+
+
 """
 Context for pruning tbn nodes when selecting a cpt for a testing node (T).
 

@@ -10,7 +10,7 @@ def play():
     """ networks: see networks/play.py for what the functions below do """
     #nplay.train_nets()
     #nplay.train_kidney()
-    #nplay.train_fn2(size=8, card=3)
+    nplay.train_fn2(size=8, card=3)
     #validateHMM(30, 2, 10)
     print("Start experiment for HMM")
     #validateHMM(20, 2, 2)
@@ -38,7 +38,7 @@ def play():
     #thmm.testTBN()
     #thmm.test_training(10,2,num_examples=2000)
     #experiment.test_cross_validate(10,2,2)
-    HMM.run_master(size=10,card=5,order=1,missing_card=True,train_card=4)
+    #HMM.run_master(size=10,card=5,order=1,missing_card=True,train_card=4)
     """ rectangles: see rectangles/play.py for what the functions below do"""
 
     """ validate """

@@ -42,11 +42,6 @@ Three types of "root" tensors are constructed when executing Ops:
     # untrainable variable for holding evidence and the batch size
 """
 
-class WeightVariable:
-    def __init__(self, weights, is_gamma):
-        self.weights = weights
-        self.is_gamma = is_gamma
-
 
 """ Op object (operation) takes tensors as inputs and outputs a tensor when executed """
 class Op:
@@ -60,7 +55,8 @@ class Op:
     multiply_cache    = None
     project_cache     = None
     mulpro_cache      = None
-    gamma             = None  # hold gamma variable used for sigmoid cpt selection
+
+    GAMMA_VALUE = 50
     
     def __init__(self,inputs,vars):
         assert type(vars) is tuple
@@ -120,13 +116,9 @@ class Op:
             elif type(op) is TrainCptOp:
                 op.execute()
                 # the weights of each cpt are grouped together
-                weight_variables.append(WeightVariable(op.weight_variables,False))
+                weight_variables.append(op.weight_variables)
                 fixed_zeros_count += op.fixed_zeros_count
-            elif type(op) is GammaOp:
-                if op.trainable: # need to learn gamma 
-                    op.build_gamma_variable()
-                    weight_variables.append(WeightVariable(op.weight_variables,True))
-#            elif op.static:
+#           elif op.static:
 #                op.execute()
         
         # return all created variables
@@ -166,18 +158,6 @@ class Op:
             op.build_cpt_tensor() # will not create variables
             train_cpt_tensors.append(op.tensor)
         return tuple(train_cpt_tensors)
-
-    # we also build trainable gamma twice: once as part of the ta graph, and then
-    # to be able to get their values for saving into file
-    @staticmethod
-    def trainable_gammas(ops_graph):
-        trainable_gamma_tensors = []
-        for op in ops_graph.ops: # parents before children
-            if type(op) is GammaOp and op.trainable:
-                # need to learn gamma
-                op.execute() # will not create variable
-                trainable_gamma_tensors.append(op.tensor)
-        return tuple(trainable_gamma_tensors)
         
     @staticmethod
     # returns a tf constant for a cpt specified using an ndarray
@@ -465,14 +445,12 @@ class ScaleOp(Op):
 """ constructs tensor representing the selected cpt of a tbn node """
 class SelectCptOp(Op):
     sel_types = ('linear', 'threshold', 'sigmoid')
-    def __init__(self,var,cpt1,cpt2,posterior,vars,threshold=None, sel_type="linear", gamma=None):
+    def __init__(self,var,cpt1,cpt2,posterior,vars,threshold=None, sel_type="linear"):
         inputs = [cpt1,cpt2,posterior]
         if threshold is not None:
             # if threshold included in cpt selection
             inputs.append(threshold)
-            if gamma is not None:
-                # if sigmoid selection is used
-                inputs.append(gamma)
+    
         Op.__init__(self,inputs,vars)
         self.static = posterior.static and cpt1.static and cpt2.static and (threshold is None or threshold.static) 
         self.var    = var
@@ -483,11 +461,9 @@ class SelectCptOp(Op):
     def execute(self):
         i1, i2, i3            = self.inputs[:3]
         cpt1, cpt2, posterior = i1.tensor, i2.tensor, i3.tensor
-        if len(self.inputs) == 4:
+        if self.sel_type != 'linear':
             threshold = self.inputs[3].tensor
-        elif len(self.inputs) == 5:
-            threshold = self.inputs[3].tensor
-            gamma = self.inputs[4].tensor
+        
         with tf.name_scope(self.label):
             if self.sel_type == 'linear':
                 #print("Use linear selection for var: {}".format(self.var))
@@ -496,32 +472,96 @@ class SelectCptOp(Op):
                 posterior = tf.expand_dims(posterior,-1) # add trivial dimension at end (card 1)
                 # selected cpt = (cpt1-cpt2)*posterior + cpt2 (linear combination)
                 # selected cpt = cpt1 for posterior=1 and cpt2 for posterior=0
-                x   = tf.subtract(cpt1,cpt2)
+                x   = tf.subtract(cpt2,cpt1)
                 y   = tf.multiply(posterior,x) # broadcasting 
-                cpt = tf.add(y,cpt2)           # broadcasting
+                cpt = tf.add(y,cpt1)           # broadcasting
                 self.tensor = cpt
             elif self.sel_type == 'threshold':        
                 # print("Use threshold selection for var: {}".format(self.var))
                 posterior = Op.flatten_and_order(posterior,i3.dims)
                 indicator = tf.greater_equal(posterior, threshold)
                 indicator = tf.cast(indicator, dtype=p.float) # remember to convert boolean values to numerical types
-                indicator = tf.expand_dims(indicator, -1) # add a new dimenstion so indicator is over parents and child
+                indicator = tf.expand_dims(indicator, -1) # add a new dimenstion so indicator is over family
                 # selected cpt = cpt1*(posterior > threshold) + cpt2*(1 - posterior > threshold)
-                x = tf.multiply(cpt1, indicator)
-                y = tf.multiply(cpt2, tf.subtract(1.0, indicator))
+                x = tf.multiply(cpt1, tf.subtract(1.0, indicator))
+                y = tf.multiply(cpt2, indicator)
                 cpt = tf.add(x, y)
                 self.tensor = cpt
             elif self.sel_type == 'sigmoid':
-                print("Use sigmoid selection for var: {}".format(self.var))
+                #print("Use sigmoid selection for var: {}".format(self.var))
+                gamma = tf.constant(Op.GAMMA_VALUE, dtype=p.float)
                 posterior = Op.flatten_and_order(posterior,i3.dims)
                 difference = tf.subtract(posterior, threshold)
                 indicator = tf.sigmoid(tf.multiply(gamma, difference))
                 indicator = tf.expand_dims(indicator, -1)
-                # indicator = 1 / {1 + exp(-y * (posterior - threshold))}
-                x = tf.multiply(cpt1, indicator)
-                y = tf.multiply(cpt2, tf.subtract(1.0, indicator))
+                # indicator = 1 / {1 + exp(-gamma * (posterior - threshold))}
+                x = tf.multiply(cpt1, tf.subtract(1.0, indicator))
+                y = tf.multiply(cpt2, indicator)
                 cpt = tf.add(x, y)
                 self.tensor = cpt
+
+def select_cpt_fn(cpts,indicators):
+    # select cpt by looking up posteriors into intervals 
+    if not indicators:
+        return cpts[0]
+    else:
+        cpt0,indicator0 = cpts[0],indicators[0]
+        cpt1 = select_cpt_fn(cpts[1:],indicators[1:])
+        x = tf.multiply(cpt0,tf.subtract(1.0, indicator0))
+        y = tf.multiply(cpt1,indicator0)
+        sel_cpt = tf.add(x,y)
+        return sel_cpt
+
+""" constructs tensor representing the selected cpt of tbn node using multiple intervals"""
+class SelectCptOpV2(Op):
+    sel_types = ('linear', 'threshold', 'sigmoid')
+    def __init__(self,var,vars,cpts,thresholds,posterior,sel_type):
+        # cpts: a list of CptOps representing N CPTs
+        # thresholds: a list of CptOps representing N-1 thresholds  
+        n_intervals = len(cpts)
+        u.input_check(len(thresholds)==n_intervals-1, "Number of thresholds and cpts does not match")
+        inputs = [cpts,thresholds,posterior]
+
+        Op.__init__(self,inputs,vars)
+        self.var = var
+        self.label  = 'sel_cpt_%s_%s_v2' % (var.name,self.strvars)
+        self.dims   = d.get_dims(vars)
+        self.static = posterior.static
+        for cpt in cpts+thresholds:
+            if not cpt.static:
+                self.static = False
+        self.n_intervals = n_intervals
+        self.sel_type = sel_type
+
+    def execute(self):
+        i0,i1,i2 = self.inputs[0],self.inputs[1],self.inputs[2]
+        cpts = [cpt.tensor for cpt in i0]
+        thresholds = [thres.tensor for thres in i1]
+        posterior = i2.tensor
+
+        with tf.name_scope(self.label):
+            posterior = Op.flatten_and_order(posterior,i2.dims)
+            indicators = []
+            if self.sel_type == 'threshold':
+                for thres in thresholds:
+                    ind = tf.cast(tf.greater_equal(posterior,thres), dtype=p.float)
+                    ind = tf.expand_dims(ind,-1)
+                    indicators.append(ind)
+
+            elif self.sel_type == 'sigmoid':
+                gamma = tf.constant(Op.GAMMA_VALUE, dtype=p.float)
+                for thres in thresholds:
+                    diff = tf.subtract(posterior,thres)
+                    ind = tf.sigmoid(tf.multiply(gamma,diff))
+                    ind = tf.expand_dims(ind,-1)
+                    indicators.append(ind)
+                
+            elif self.sel_type == 'linear':
+                raise NotImplementedError("Linear selection v2 is not ready")
+
+            self.tensor = select_cpt_fn(cpts,indicators)
+    
+
 
 
  
@@ -671,44 +711,6 @@ class TrainCptOp(CptOp):
     def build_cpt_tensor(self):
         with tf.name_scope(self.label):
             self.tensor = self.trainable_cpt(self.cpt_spec)
-
-class GammaOp(Op):
-    # construct tensor representing a fixed/trainable gamma parameter of a tbn node
-    def __init__(self,var,value,trainable=False):
-        Op.__init__(self,inputs=None,vars=())
-        self.static = True
-        self.dims=None
-        self.label = 'gamma_%s' %var.name
-        self.value = value
-        self.trainable = trainable
-        self.weight_variables = []
-
-    def build_gamma_variable(self):
-        name = self.label
-        with tf.name_scope(self.label):
-            weight = tf.Variable(initial_value=[self.value], shape=(1,), dtype=p.float, name=name)
-            self.weight_variables.append(weight)
-    
-    def execute(self):
-        with tf.name_scope(self.label):
-            if not self.trainable:
-                self.tensor = tf.constant(self.value, dtype=p.float)
-            else:
-                self.tensor = self.weight_variables[0]
-                # already build tf variables for gamma
-
-class RefGammaOp(Op):
-    # reference to gamma tensor
-    def __init__(self,var,tied_gamma_op):
-        Op.__init__(self,inputs=None,vars=())
-        self.static = True
-        self.label = 'gamma_%s' % var.name
-        self.tied_gamma_op = tied_gamma_op
-
-    def execute(self):
-        assert self.tied_gamma_op.tensor is not None # gamma op already created
-        with tf.name_scope(self.label):
-            self.tensor = self.tied_gamma_op.tensor
         
 """ constructs tensor representing evidence on tbn node """
 class EvidenceOp(Op):

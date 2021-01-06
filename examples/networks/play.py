@@ -53,14 +53,15 @@ def train_fn2(size,card):
 #        lambda x,y: x,
         lambda x,y: 0.5*math.exp(-5*(x-.5)**2-5*(y-.5)**2),
         lambda x,y: .5 + .5 * math.sin(2*math.pi*x),
-        lambda x,y: 1.0/(1+math.exp(-32*(y-.5))),
-        lambda x,y: math.exp(math.sin(math.pi*(x+y))-1),
-        lambda x,y:  (1-x)*(1-x)*(1-x)*y*y*y,
-        lambda x,y: math.sin(math.pi*(1-x)*(1-y)),
-        lambda x,y: math.sin((math.pi/2)*(2-x-y)),
+        #lambda x,y: 1.0/(1+math.exp(-32*(y-.5))),
+        #lambda x,y: math.exp(math.sin(math.pi*(x+y))-1),
+        #lambda x,y:  (1-x)*(1-x)*(1-x)*y*y*y,
+        #lambda x,y: math.sin(math.pi*(1-x)*(1-y)),
+        #lambda x,y: math.sin((math.pi/2)*(2-x-y)),
         lambda x,y: .5*x*y*(x+y)]
     
     tbn, e1, e2, q = get.fn2_chain(size,card)
+    tbn.set_select_type('sigmoid')
     TAC = tac.TAC(tbn,[e1,e2],q,trainable=True,profile=False)
     
     for fn in functions:
@@ -77,6 +78,7 @@ def train_fn2(size,card):
 def train_kidney():
     
     tbn = get.kidney_full()
+    tbn.set_select_type('sigmoid')
 
     e1 = 'L'
     e2 = 'T'

@@ -3,8 +3,8 @@ from random import uniform
 from itertools import product
 from types import FunctionType
 from inspect import signature
-
 import utils.utils as u
+import functools
 
 """
 Utilities for manipulating cpts. 
@@ -56,6 +56,8 @@ def expand(node,cpt,cpt_type):
             f'specifying TBN cpt')
             
     assert type(cpt) is np.ndarray
+    if cpt.shape != node.shape():
+        print("wrong cpt shape for node: %s cpt shape: %s node shape: %s" %(node.name,cpt.shape,node.shape()))
     assert cpt.shape == node.shape()
     u.check(normalized(cpt),
             f'{cpt_type} of node {node.name} is not normalized:\n  {cpt}',
@@ -68,8 +70,13 @@ def expand(node,cpt,cpt_type):
 # convenience function for applying various transformations to node cpts                
 def __apply(node,fn):
     if node.testing:
-        node._cpt1 = fn(node.cpt1,'cpt1')
-        node._cpt2 = fn(node.cpt2,'cpt2')
+        if node.is_node_v2():
+            # if tbn node using multiple thresholds
+            cpts = [fn(cpt, f'cpt{i}') for i,cpt in enumerate(node.cpts)]
+            node._cpts = cpts
+        else:
+            node._cpt1 = fn(node.cpt1,'cpt1')
+            node._cpt2 = fn(node.cpt2,'cpt2')
     else:
         node._cpt  = fn(node.cpt,'cpt')
         
@@ -132,7 +139,11 @@ def set_cpts(node):
     check = lambda cpt: type(cpt) is np.ndarray and cpt.shape == node.shape() and \
                 np.allclose(1.,np.sum(cpt,axis=-1)) # normalized
     if node.testing:
-        assert check(node.cpt1) and check(node.cpt2)
+        if node.is_node_v2():
+            for cpt in node.cpts:
+                assert check(cpt)
+        else:
+            assert check(node.cpt1) and check(node.cpt2)
     else:
         assert check(node.cpt)
             
@@ -141,9 +152,14 @@ def set_cpts(node):
 def __prune_values(node):
     # find out which values can be pruned
     if node.testing:
-        pvalues1 = __infeasible_values(node,node.cpt1)
-        pvalues2 = __infeasible_values(node,node.cpt2)
-        pvalues  = pvalues1 & pvalues2
+        if node.is_node_v2():
+            # if node2 with multiple thresholds
+            pvalues = functools.reduce(lambda x,y: x & y, node.cpts)
+        else:
+            pvalues1 = __infeasible_values(node,node.cpt1)
+            pvalues2 = __infeasible_values(node,node.cpt2)
+            pvalues  = pvalues1 & pvalues2
+
     else:
         pvalues  = __infeasible_values(node,node.cpt)
     # pvalues is a set

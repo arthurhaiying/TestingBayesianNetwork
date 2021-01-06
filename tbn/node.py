@@ -17,12 +17,12 @@ class Node:
     
     # user attributes are ones that can be specified by the user when constructing node
     user_attributes = ('name','values','parents','testing','fixed_cpt','fixed_zeros',
-                        'cpt_tie','functional','cpt','cpt1','cpt2','threshold','gamma')
+                        'cpt_tie','functional','cpt','cpt1','cpt2','threshold')
             
     # only node name is position, everything else is keyword only (* as third argument)
     def __init__(self, name, *, values=(True,False), parents=[], functional=None, 
                     fixed_cpt=False, fixed_zeros=False, testing=None, cpt_tie=None,
-                    cpt=None, cpt1=None, cpt2=None, threshold=None, gamma=None):
+                    cpt=None, cpt1=None, cpt2=None, threshold=None):
 
         # copy potentially mutable arguments in case they get changed by the user
         values, parents, cpt, cpt1, cpt2, threshold = \
@@ -42,7 +42,7 @@ class Node:
             f'node parents must be a list')
         u.input_check(len(parents) == len(set(parents)),
             f'node parents must be unique')
-        u.input_check(all(type(p) is Node for p in parents),
+        u.input_check(all(isinstance(p, Node) for p in parents),
             f'node parents must be TBN nodes')
         u.input_check(functional in (True,False,None),
             f'functional flag must be True or False')
@@ -112,7 +112,6 @@ class Node:
         self._cpt1        = cpt1          # becomes np array
         self._cpt2        = cpt2          # becomes np array
         self._threshold   = threshold     # becomes np array
-        self._gamma       = gamma         
         self._cpt_tie     = cpt_tie       # tied cpts may have different shapes after pruning
         
         # derived attributes that may also change when preparing for inference
@@ -167,8 +166,6 @@ class Node:
     @property
     def threshold(self):   return self._threshold
     @property
-    def gamma(self):   return self._gamma
-    @property
     def cpt_label(self):   return self._cpt_label
     @property
     def tbn(self):         return self._tbn
@@ -218,6 +215,9 @@ class Node:
         cond1 = not trainable and self._all01_cpt
         cond2 = trainable and (self._functional or (self.fixed_cpt and self._all01_cpt))
         return cond1 or cond2
+
+    def is_node_v2(self):
+        return False
     
     # -returns the cpt for node as a numpy array
     # -does not prune values or edges (which is done when preparing cpts for inference)

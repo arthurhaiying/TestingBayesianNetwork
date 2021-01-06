@@ -1,0 +1,42 @@
+digraph {
+	rankdir=TD
+	v0 [shape=circle]
+	v1 [shape=circle]
+	v2 [shape=circle style=filled]
+	v3 [shape=circle]
+	v4 [shape=circle style=filled]
+	v5 [shape=circle]
+	v6 [shape=circle style=filled]
+	v7 [shape=doublecircle]
+	v8 [shape=doublecircle]
+	v9 [shape=circle]
+	v10 [shape=circle]
+	v11 [shape=circle style=filled]
+	v12 [shape=circle style=filled]
+	v13 [shape=circle]
+	v14 [shape=circle]
+	v15 [shape=doublecircle]
+	v16 [shape=circle]
+	v17 [shape=doublecircle]
+	v18 [shape=doublecircle]
+	v19 [shape=circle]
+	v1 -> v10
+	v1 -> v14
+	v1 -> v6
+	v2 -> v0
+	v2 -> v4
+	v2 -> v3
+	v2 -> v13
+	v6 -> v0
+	v7 -> v15
+	v8 -> v5
+	v9 -> v6
+	v11 -> v19
+	v12 -> v10
+	v15 -> v2
+	v15 -> v18
+	v16 -> v6
+	v17 -> v8
+	v18 -> v17
+	v19 -> v13
+}

@@ -125,11 +125,29 @@ def is_marginals(marginals,one_hot=False):
   
 # checks whether marginals match var  
 def mar_matches_output(marginals,var):
-    return marginals.shape[1] == var.card
+    try:
+        return marginals.shape[1] == var.card
+    except IndexError:
+        print("marginals shape error: %s var card: %s" % (marginals.shape,var.card))
+
+def mar_matches_output2(marginals,vars):
+    vcards = tuple(var.card for var in vars)
+    #print("cards: %s marginals shape: %s" % (vcards, marginals.shape,))
+    try:
+        return marginals.shape[1:] == vcards
+    except IndexError:
+        print("marginals shape error: %s vars cards: %s" % (marginals.shape,vcards))
 
 # checks sanity of predicted marginals (output of tac evaluation)    
 def mar_is_predictions(marginals):
     sum = np.sum(marginals,axis=-1)
+    # must be normalized or all 0s (zero-probability evidence)  
+    # allows tolerance
+    return np.all(np.isclose(sum,1) | np.equal(sum,0))
+
+# checks sanity of predicted marginals (output of tac evaluation)    
+def mar_is_predictions2(marginals):
+    sum = np.sum(marginals,axis=tuple(np.arange(1,marginals.ndim)))
     # must be normalized or all 0s (zero-probability evidence)  
     # allows tolerance
     return np.all(np.isclose(sum,1) | np.equal(sum,0))
@@ -250,6 +268,26 @@ def evd_col2row(cols):
         for i, lambda_ in enumerate(col):
             rows[i].append(lambda_)
     return rows
+
+# convert index-based evidence to tac inputs
+# index-based evidences: a list of list, each representing one instantion for all evidence variables
+# tac inputs: a list of 2D numpy arrays, each representing one evidence variable for all records
+def evd_hard2lambdas(evidences,cards):
+    assert np.array(evidences).shape[1] == len(cards)
+    rows = []
+    for evid in evidences:
+        # for each record
+        row = [] 
+        for i,index in enumerate(evid):
+            # for evidence node E_i
+            card_i = cards[i]
+            lambda_ = np.zeros(card_i)
+            lambda_[index] = 1.0
+            row.append(lambda_)
+            # convert index to one-hot lambda 
+        rows.append(row)
+    cols = evd_row2col(rows)
+    return cols
     
 # returns the number of evidence variables
 # evidence is col-based

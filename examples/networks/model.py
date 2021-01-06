@@ -1,5 +1,12 @@
 from tbn.tbn import TBN
-from tbn.node import Node
+from tbn.node import Node as NodeV1
+from tbn.node2 import NodeV2 as NodeV2
+import numpy as np
+
+USE_NODE_V2 = True
+Node = NodeV1 if not USE_NODE_V2 else NodeV2
+NUM_INTERVALS = 3
+thres = [1.0/NUM_INTERVALS*i for i in range(NUM_INTERVALS-1)]
 
 # chain tbn for learning functions with two inputs
 # size is the number of testing layers between roots and output
@@ -13,8 +20,13 @@ def fn2_chain(size,card=2):
     
     x1 = Node('x',values=bvalues,parents=[])
     y1 = Node('y',values=bvalues,parents=[])
-    z1 = Node('z1',values=values,parents=[x1,y1],testing=True)
     
+    if not USE_NODE_V2:
+        z1 = Node('z1',values=values,parents=[x1,y1],testing=True)
+    else:
+        thresholds = [t*np.ones((2,2)) for t in thres]
+        z1 = Node('z1',values=values,parents=[x1,y1],testing=True,thresholds=thresholds,num_intervals=NUM_INTERVALS)
+
     net.add(x1)
     net.add(y1)
     net.add(z1)
@@ -25,7 +37,11 @@ def fn2_chain(size,card=2):
         values = bvalues if last else values
         p_name = 'z%d' % (i-1)
         parent = net.node(p_name)
-        z = Node(name,values=values,parents=[parent],testing=True)
+        if not USE_NODE_V2:
+            z = Node(name,values=values,parents=[parent],testing=True)
+        else:
+            thresholds = [t*np.ones(card) for t in thres]
+            z = Node(name,values=values,parents=[parent],testing=True,num_intervals=NUM_INTERVALS)
         net.add(z)
         
     #net.dot(view=True)

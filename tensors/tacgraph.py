@@ -54,7 +54,6 @@ class TacGraph:
         self.trainable          = ops_graph.trainable        # whether tac is trainable
         self.profile            = profile                    # for saving tac and timings
         self.train_cpt_labels   = ops_graph.train_cpt_labels # for saving cpts to file
-        self.train_gamma_labels = ops_graph.train_gamma_labels # for saving gammas to file
         
         self.evidence_variables = None # variables: tac inputs
         self.weight_variables   = None # variables: only trainables in TacGraph
@@ -75,7 +74,6 @@ class TacGraph:
         self.CA                 = None # callable tf graph, computes class. accuracy
         self.MSE                = None # callable tf graph, computes mean squared error
         self.OPT                = None # callable tf graph, optimizes loss (one step)
-        self.GAMMAS              = None # callable tf graoh, get trainable gamma
         
         # CE (cross entropy), CA (classification accuracy), MSE (mean-squared error)
         self.loss_types         = ('CE','MSE')
@@ -128,9 +126,6 @@ class TacGraph:
         # then in their own tf graph (so we can save them without evaluating tac graph)
         # self.TCPTS() returns trainable cpts (for saving)
         self.TCPTS = self.__trainable_cpts.get_concrete_function(ops_graph) 
-
-        # trainable gamma parameters are also created twice
-        self.GAMMAS = self.__trainable_gammas.get_concrete_function(ops_graph)
         
         ### compiling tf graphs for computing metrics and losses (three tf graphs)
         
@@ -161,7 +156,7 @@ class TacGraph:
         # compute sizes of compiled tf graphs
         graph_size      = lambda fn: self.__graph_size(fn.graph)[0]
         self.size, self.binary_rank, self.rank = self.__graph_size(self.MAR.graph)
-        concrete_fns    = (self.TCPTS, self.GAMMAS, self.CE, self.CA, self.MSE)
+        concrete_fns    = (self.TCPTS, self.CE, self.CA, self.MSE)
         metrics_size    = sum(graph_size(fn) for fn in concrete_fns)
         self.total_size = self.size + metrics_size
         
@@ -194,7 +189,7 @@ class TacGraph:
         # cpt_variables are the weight variables grouped by cpt
         self.weight_variables = []
         for cpt_variable in self.cpt_variables: 
-            self.weight_variables.extend(cpt_variable.weights)
+            self.weight_variables.extend(cpt_variable)
         self.weight_variables = tuple(self.weight_variables)
         
     @tf.function
@@ -221,13 +216,6 @@ class TacGraph:
         # evaluate()
         # compute_metric()
     """
-
-    @tf.function
-    # this function creates tensors for trainable gamma parameters
-    # later compile into the callable tf graph self.GAMMA
-    def __trainable_gammas(self,ops_graph):
-        return ops.Op.trainable_gammas(ops_graph)
-
 
         
     # evaluates tac for given evidence batch
@@ -309,10 +297,6 @@ class TacGraph:
         values = [t.numpy() for t in self.TCPTS()]
         for cpt in values:
             assert np.allclose(np.sum(cpt,axis=-1),1.) # normalized cpts
-        gammas = [t.numpy() for t in self.GAMMAS()]
-        print("gamma num: %d" %len(gammas))
-        values.extend(gammas)
-        labels.extend(self.train_gamma_labels)
         formatter = {'float_kind': lambda n: f'{n:.4f}'}
         with open(fname,'w') as f:
             for label, cpt in zip(labels,values):
@@ -326,10 +310,7 @@ class TacGraph:
         # fixed glabal_seed ==> the same weights each time this function is called
         global_seed = randint(0,1000000)
         for cpt_variable in self.cpt_variables:
-            if cpt_variable.is_gamma:
-                # do not try random weights for gammas
-                continue
-            cpt_weights = cpt_variable.weights
+            cpt_weights = cpt_variable
             # 0-mean and 0-std leads to a uniform distribution
             # as std gets smaller, the distribution tends to uniform
             # as std gets larger,  the distribution can become more extreme (not good) 

@@ -1087,8 +1087,8 @@ def do_multiple_connected_experiment():
 
 
 if __name__ == '__main__':
-    #do_poly_tree_experiment()
-    do_multiple_connected_experiment()
+    do_poly_tree_experiment()
+    #do_multiple_connected_experiment()
     
 
 

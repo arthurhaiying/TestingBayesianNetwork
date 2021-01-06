@@ -39,7 +39,7 @@ Adds operations to og that will construct a tac when the ops are executed.
 # jt: Jointree
 # og: OpsGraph
 
-def trace(query_var,evidence_vars,tbn,jt,og):
+def trace(query_var,evidence_vars,tbn,jt,og,sel_type):
     assert tbn._for_inference
     assert tbn == jt.tbn
     # the following need to be relaxed
@@ -53,10 +53,12 @@ def trace(query_var,evidence_vars,tbn,jt,og):
     qcontext = prune.for_node_posterior(query_var,evidence_vars,tbn)
     
     # add ops that will create tensors for selected cpts (if any)
-    sel_type = tbn.get_select_type()
-    gamma_opt = tbn.get_gamma_option()
     for var in qcontext.testing_nodes:       # top-down
-        __selected_cpt(var,qcontext,sel_type,jt,og,gamma_opt=gamma_opt)   # also prunes
+        if var.is_node_v2():
+            __selected_cpt_v2(var,qcontext,sel_type,jt,og)
+        else:
+            __selected_cpt(var,qcontext,sel_type,jt,og)   # also prunes
+        
         
     # add ops that will create tensor for the posterior over query_node
     __node_posterior(query_var,qcontext,jt,og)
@@ -72,13 +74,54 @@ def trace(query_var,evidence_vars,tbn,jt,og):
            f'    selected cpts: all {all_count}, live {live_count}\n'
            f'    single-value nodes: {sval_count}\n'
            f'    pruned nodes: {pruned_count}, percentage {pruned_perct:.1f}%')
+
+# dummy_var: a dummy query var (what we need is its parent posterior)
+# evidence_vars: tbn nodes
+# jt: Jointree over tbn with dummy var
+# og: OpsGraph
+
+def trace2(dummy_var,evidence_vars,tbn,jt,og,sel_type):
+    assert tbn._for_inference
+    assert tbn == jt.tbn
+    # the following need to be relaxed
+    assert not dummy_var.has_pruned_values() 
+    assert not any(var.has_pruned_values() for var in evidence_vars)
     
+    ops = og.add_evidence_ops(evidence_vars) # ops that construct tensors for evidence
+    jt.declare_evidence(evidence_vars,ops)   # save ops in jointree for later lookup
+    
+    # qcontext: captures the pruned tbn used to compute posterior on dummy_var
+    qcontext = prune.for_node_posterior(dummy_var,evidence_vars,tbn)
+    
+    # add ops that will create tensors for selected cpts (if any)
+    for var in qcontext.testing_nodes:       # top-down
+        if var.is_node_v2():
+            __selected_cpt_v2(var,qcontext,sel_type,jt,og)
+        else:
+            __selected_cpt(var,qcontext,sel_type,jt,og)   # also prunes
+        
+        
+    # add ops that will create tensor for the posterior over parents of dummy var
+    __parents_posterior(dummy_var,qcontext,jt,og)
+            
+    hit_rate     = jt.hits*100/jt.lookups if jt.lookups > 0 else 0
+    all_count    = len(qcontext.testing_nodes)
+    live_count   = qcontext.live_count 
+    sval_count   = sum(1 for n in tbn.nodes if len(n.values) == 1)
+    pruned_count = len(tbn.nodes)-len(qcontext.nodes)
+    pruned_perct = pruned_count*100/len(tbn.nodes)
+    u.show(f'  Tracing posterior for \'{dummy_var.name}\':\n'
+           f'    og-cache lookups {jt.lookups}, hits {jt.hits}, rate {hit_rate:.1f}%\n'
+           f'    selected cpts: all {all_count}, live {live_count}\n'
+           f'    single-value nodes: {sval_count}\n'
+           f'    pruned nodes: {pruned_count}, percentage {pruned_perct:.1f}%')
+               
          
 """ 
 Adds ops that construct a tensor for the selected cpt of tbn node.
 """
 
-def __selected_cpt(var,qcontext,sel_type,jt,og,gamma_opt=None): # var is a tbn node
+def __selected_cpt(var,qcontext,sel_type,jt,og): # var is a tbn node
     assert var.testing
     assert jt.lookup_sel_cpt_op(var) is None
     
@@ -97,11 +140,28 @@ def __selected_cpt(var,qcontext,sel_type,jt,og,gamma_opt=None): # var is a tbn n
         sel_cpt_op = og.add_selected_cpt_op(var,cpt1_op,cpt2_op,ppost_op,threshold_op=threshold_op,sel_type=sel_type)
     elif sel_type == 'sigmoid':
         threshold_op = og.add_cpt_op(var,var.threshold,'thres')
-        gamma_op = og.add_gamma_op(var,var.gamma,gamma_opt)
-        sel_cpt_op = og.add_selected_cpt_op(var,cpt1_op,cpt2_op,ppost_op,threshold_op=threshold_op,sel_type=sel_type,
-            gamma_op=gamma_op)
+        sel_cpt_op = og.add_selected_cpt_op(var,cpt1_op,cpt2_op,ppost_op,threshold_op=threshold_op,sel_type=sel_type)
     jt.save_sel_cpt_op(var,sel_cpt_op) # cache it, looked up by _cpt_evd()
-                
+""" 
+Adds ops that construct a tensor for the selected cpt of tbn node using multiple thresholds.
+"""
+
+def __selected_cpt_v2(var,qcontext,sel_type,jt,og): # var is a tbn node
+    print("Use CPT selection V2")
+    assert var.testing
+    assert var.is_node_v2()
+    assert jt.lookup_sel_cpt_op(var) is None
+    
+    # qcontext captures the pruned tbn used to compute the posterior on query var
+    # scontext captures the pruned tbn used to compute the posterior on parents of var
+    # the tbn captured by scontext is a subset of the one captured by qcontext
+    scontext             = prune.for_selection(var,qcontext)
+    ppost_op, host, view = __parents_posterior(var,scontext,jt,og)
+    
+    cpt_ops = [og.add_cpt_op(var,cpt,f'cpt{i+1}') for i,cpt in enumerate(var.cpts)]
+    threshold_ops = [og.add_cpt_op(var,thres,f'thres{i+1}') for i,thres in enumerate(var.thresholds)]
+    sel_cpt_op = og.add_selected_cpt_op_v2(var,cpt_ops,ppost_op,threshold_ops,sel_type)
+    jt.save_sel_cpt_op(var,sel_cpt_op) # cache it, looked up by _cpt_evd()
 
 """              
 Returns an op that constructs a tensor for the posterior over parents of tbn node,
@@ -115,6 +175,9 @@ def __parents_posterior(var,scontext,jt,og): # var is a tbn node
     view    = jt.view_for_query(var,scontext,verbose=False)
     host    = view.host        # jointree node that hosts cpt of var
     parents = set(var.parents) # we need the posterior on these vars
+    if var.name == 'dummy':
+        pcards = tuple(len(p.values) for p in var.parents)
+        print("parents card: ", pcards)
     if view.empty:             # pruned tbn has only one node (var)
         assert not parents
         # -testing node lost its parents as they have one value

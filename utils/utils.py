@@ -8,7 +8,7 @@ from psutil import virtual_memory
 Various utilities
 """
 
-verbose = True # can be set by command line
+verbose = False # can be set by command line
 
 # verbose and silent modes
 # code uses show() instead of print() which adheres to verbose/silent modes

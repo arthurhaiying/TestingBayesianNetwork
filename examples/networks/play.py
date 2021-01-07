@@ -61,8 +61,7 @@ def train_fn2(size,card):
         lambda x,y: .5*x*y*(x+y)]
     
     tbn, e1, e2, q = get.fn2_chain(size,card)
-    tbn.set_select_type('sigmoid')
-    TAC = tac.TAC(tbn,[e1,e2],q,trainable=True,profile=False)
+    TAC = tac.TAC(tbn,[e1,e2],q,trainable=True,sel_type="sigmoid",profile=False)
     
     for fn in functions:
         evidence, marginals = data.simulate_fn2(fn,1024)
@@ -101,3 +100,4 @@ def train_kidney():
     
         # visualize learned tac
         visualize.plot3D(evidence,predictions,e1,e2,q)
+

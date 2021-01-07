@@ -295,8 +295,9 @@ class TacGraph:
         self.training_ongoing = False
         labels = self.train_cpt_labels
         values = [t.numpy() for t in self.TCPTS()]
-        for cpt in values:
-            assert np.allclose(np.sum(cpt,axis=-1),1.) # normalized cpts
+        for label,cpt in zip(labels,values):
+            if label.startswith('cpt'):
+                assert np.allclose(np.sum(cpt,axis=-1),1.) # normalized cpts
         formatter = {'float_kind': lambda n: f'{n:.4f}'}
         with open(fname,'w') as f:
             for label, cpt in zip(labels,values):

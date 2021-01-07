@@ -114,10 +114,13 @@ class Op:
                 op.execute()
                 evidence_variables.append(op.tensor)
             elif type(op) is TrainCptOp:
-                op.execute()
+                op.execute() # intialize weight variables for cpt
                 # the weights of each cpt are grouped together
                 weight_variables.append(op.weight_variables)
                 fixed_zeros_count += op.fixed_zeros_count
+            elif type(op) is TrainThresholdsOp:
+                op.execute() # initialize weight variables for multiple thresholds 
+                weight_variables.append(op.weight_variables)
 #           elif op.static:
 #                op.execute()
         
@@ -133,10 +136,16 @@ class Op:
         for op in ops_graph.ops:       # parents before children
  #           if op.static: continue
             if type(op) is EvidenceOp: continue # already executed
-            if type(op) is TrainCptOp: # already executed and created weight variables
+            elif type(op) is TrainCptOp: # already executed and created weight variables
                 op.build_cpt_tensor()  # we now need to assemble weights into a cpt
-            else: 
-                op.execute()           # will not create variables
+            elif type(op) is TrainThresholdsOp: # already executed and created weight variables
+                op.build_thresholds_tensor() # we now need to transform weights into multiple thresholds
+            else:
+                try:
+                    op.execute()           # will not create variables
+                except ValueError as e:
+                    print("Error op type: %s"%type(op) + str(e))
+                    exit(1)
                 if type(op) is FixedCptOp:
                     fixed_cpt_tensors.append(op.tensor)
                 
@@ -154,9 +163,19 @@ class Op:
     def trainable_cpts(ops_graph):
         train_cpt_tensors = []
         for op in ops_graph.ops: # parents before children
-            if not type(op) is TrainCptOp: continue
-            op.build_cpt_tensor() # will not create variables
-            train_cpt_tensors.append(op.tensor)
+            if type(op) is TrainCptOp:
+                op.build_cpt_tensor() # will not create variables
+                train_cpt_tensors.append(op.tensor)
+            elif type(op) is TrainThresholdsOp:
+                op.build_thresholds_tensor() # will not create weight variables
+            elif type(op) is RefThresholdOp:
+                # retieve individual thresholds and append
+                #train_cpt_tensors.append(op.tensor)
+                op.execute()
+                train_cpt_tensors.append(op.tensor)
+            else:
+                # other ops
+                continue
         return tuple(train_cpt_tensors)
         
     @staticmethod
@@ -601,6 +620,23 @@ class RefCptOp(CptOp):
         assert self.tied_cpt_op.tensor is not None # op already executed
         with tf.name_scope(self.label):
             self.tensor = self.tied_cpt_op.tensor  # use tensor of tied-cpt op
+
+''' reference to one individual threshold from multiple thresholds'''
+class RefThresholdOp(CptOp):
+
+    def __init__(self,var,cpt_type,vars,thresholds_op):
+        CptOp.__init__(self,var,cpt_type,vars)
+        self.static = False
+        assert cpt_type.startswith('thres')
+        #self.type = cpt_type
+        self.index = int(cpt_type[len('thres'):])
+        self.thresholds_op = thresholds_op
+
+    def execute(self):
+        # retrieve one set of thresholds
+        assert self.thresholds_op is not None # op already executed
+        with tf.name_scope(self.label):
+            self.tensor = tf.gather(self.thresholds_op.tensor,indices=self.index-1,axis=-1)
                               
 """ constructs tensor representing a non-trainable cpt of a tbn node """
 class FixedCptOp(CptOp):
@@ -689,6 +725,9 @@ class TrainCptOp(CptOp):
         
     # returns a tensor representing a trainable cpt (built from a cpt spec)
     def trainable_cpt(self,spec):
+        if self.type == 'thres':
+            # trainable variable for thresholds, between 0 and 1
+            return tf.math.sigmoid(spec)
         if type(spec) is tuple: # spec for a conditional cpt
             return tf.stack([self.trainable_cpt(cond_spec) for cond_spec in spec])
         if type(spec) is list:  # distribution with fixed zeros
@@ -732,3 +771,65 @@ class EvidenceOp(Op):
         
         with tf.name_scope(self.label):
             self.tensor = tf.Variable(value,trainable=False,shape=shape,dtype=dtype)
+
+''' construct a tensor representing N-1 trainable thresholds for a testing node
+    For each parent state, the N-1 thresholds must be increasing'''
+
+class TrainThresholdsOp(CptOp):
+    
+    def __init__(self,var,thresholds,vars):
+        CptOp.__init__(self,var,"thresholds",vars)
+        self.static = False
+        self.num_intervals = len(thresholds)+1
+        self.thresholds = np.stack(tuple(thresholds),axis=-1) # numpy arrays
+        self.weight_id = count()
+        self.weight_variables = []
+        self.thresholds_spec = None # spec to build N-1 increaing thresholds
+
+    # returns trainable variables for N-1 threshol
+    def trainable_weight(self,distribution): # distribution is np array
+        id     = next(self.weight_id)
+        name   = f'w{id}'
+        dtype  = p.float
+        length = len(distribution)
+        shape  = (length,)   # same as distribution.shape if zero_count=0  
+        step = 1.0/(length-1)
+        value = [step]*length
+        value[0] = 0.0
+        
+        # the only trainable variables in tac
+        weight = tf.Variable(initial_value=value,trainable=True,
+                    shape=shape,dtype=dtype,name=name)    
+
+        self.weight_variables.append(weight)
+        return weight
+
+    # -returns a nested tuple of the same shape as thresholds
+    # each entry of the tuple are weights for N-1 thresholds for each parent state
+    def spec(self,thresholds):
+        if thresholds.ndim == 1: # thres is a distribution
+            return self.trainable_weight(thresholds) # fully trainable distribution, no zeros
+        return tuple(self.spec(thres) for thres in thresholds)
+
+
+    # returns a tensor representing trainable thresholds from thres spec
+    def trainable_thresholds(self,spec):
+        if type(spec) is tuple: # spec for a conditional cpt
+            return tf.stack([self.trainable_thresholds(cond_spec) for cond_spec in spec])
+        else:
+            # for one parent state
+            thres = tf.math.cumsum(tf.math.abs(spec)) # increasing thresholds
+            return tf.math.tanh(thres)
+
+    # defines a spec for constructing the thresholds tensor, initializing weight variables
+    def execute(self):
+        with tf.name_scope(self.label):
+            self.thresholds_spec = self.spec(self.thresholds)
+
+    def build_thresholds_tensor(self):
+        with tf.name_scope(self.label):
+            self.tensor = self.trainable_thresholds(self.thresholds_spec)
+
+    
+
+     

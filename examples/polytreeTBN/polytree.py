@@ -23,11 +23,11 @@ NUM_NODES = 50
 NUM_ITERS = 500
 MIN_NUM_ABSTRACTED_NODES = 5
 MAX_NUM_ABSTRACTED_NODES = 5
-MIN_NUM_EVIDENCE_NODES = 5
-MAX_NUM_EVIDENCE_NODES = 5
+MIN_NUM_EVIDENCE_NODES = 7
+MAX_NUM_EVIDENCE_NODES = 7
 
 DETERMINISTIC_CPTS = True
-NUM_INTERVALS = 100
+NUM_INTERVALS = 10
 ZERO_POSTERIOR_VALUE = 0.0
 # posteriors smaller than this value is ignored
 
@@ -1086,8 +1086,8 @@ def do_polytree_tbn_experiment():
     kl_loss_baseline = KL_divergence(marginals,marginals_baseline)
     kl_loss_baseline2 = KL_divergence(marginals_incomplete,marginals_baseline2)
     kl_loss = KL_divergence(marginals,marginals_incomplete)
-    print("kl loss: %.6f" %kl_loss)
-    print("Kl loss baseline: %.6f Kl kl loss baseline2: %.6f loss: %.6f gain2: %.3f" %(kl_loss_baseline,kl_loss_baseline2,
+    print("kl loss: %.9f" %kl_loss)
+    print("Kl loss baseline: %.9f kl loss baseline2: %.9f kl loss: %.9f gain2: %.3f" %(kl_loss_baseline,kl_loss_baseline2,
         kl_loss,kl_loss_baseline2/kl_loss))
     
 

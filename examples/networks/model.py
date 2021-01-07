@@ -5,7 +5,7 @@ import numpy as np
 
 USE_NODE_V2 = True
 Node = NodeV1 if not USE_NODE_V2 else NodeV2
-NUM_INTERVALS = 3
+NUM_INTERVALS = 5
 thres = [1.0/NUM_INTERVALS*i for i in range(NUM_INTERVALS-1)]
 
 # chain tbn for learning functions with two inputs

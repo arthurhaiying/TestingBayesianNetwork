@@ -253,9 +253,9 @@ class OpsGraph:
         def cpt_op():
             if not self.trainable or node.fixed_cpt:
                 op = ops.FixedCptOp(var,cpt,cpt_type,vars)
-            elif cpt_type.startswith('thres') and node.is_node_v2():
+                # elif cpt_type.startswith('thres') and node.is_node_v2():
                 # thresholds in cpt selection v2 are fixed
-                op = ops.FixedCptOp(var,cpt,cpt_type,vars)
+                # op = ops.FixedCptOp(var,cpt,cpt_type,vars)
             else:
                 op = ops.TrainCptOp(var,cpt,cpt_type,node.fixed_zeros,vars)
                 self.train_cpt_labels.append(node.cpt_label[cpt_type])
@@ -277,6 +277,53 @@ class OpsGraph:
         
         self.ops.append(op)
         return op
+
+
+    """ adds op that create thresholds tensor with increasing constraint for each testing node"""
+    def add_trainable_thresholds_op(self,node,thresholds):
+        assert node.is_node_v2()
+        assert node not in self.cpt_ops["thresholds"]
+        self.cpt_ops["thresholds"].add(node)
+        nodes  = set(node.family)
+        vars   = self.nodes2vars(nodes,add_batch=False)
+        var,vars    = vars[-1],vars[:-1]     # dimension of var
+        assert node.id == var.id             # var has last dimension in cpt
+        assert node.num_intervals == len(thresholds)+1
+        assert self.shape(vars) == thresholds[0].shape # cpt matches ordered family
+
+        # create op for training multiple thresholds
+        op = ops.TrainThresholdsOp(var,thresholds,vars)
+        self.ops.append(op)
+        return op
+
+
+        
+
+
+
+
+    """ adds op that reference one individual threshold from N-1 thresholds"""
+    def add_ref_threshold_op(self,node,thresholds_op,cpt_type):
+        #print("Add threshold type: ", cpt_type)
+        assert node.is_node_v2()
+        assert isinstance(thresholds_op, ops.TrainThresholdsOp) 
+        assert cpt_type.startswith('thres')
+        assert node not in self.cpt_ops[cpt_type]
+        self.cpt_ops[cpt_type].add(node)
+        nodes  = set(node.family)
+        vars   = self.nodes2vars(nodes,add_batch=False)
+        var,vars    = vars[-1],vars[:-1]     # dimension of var
+        assert node.id == var.id             # var has last dimension in cpt
+
+        # add ref threshold op
+        op = ops.RefThresholdOp(var,cpt_type,vars,thresholds_op)
+        self.train_cpt_labels.append(node.cpt_label[cpt_type]) # add to train cpt labels as parameters
+        self.ops.append(op)
+        return op
+        
+
+
+    
     
     
     """ adds ops that create tensors for evidence when the ops are executed """       
@@ -316,7 +363,7 @@ class OpsGraph:
             elif  op_type == ops.EvidenceOp:  ec  += 1
             elif  op_type == ops.FixedCptOp:  fc  += 1
             elif  op_type == ops.TrainCptOp:  tc  += 1
-            else: assert op_type in (ops.BatchSizeOp, ops.ScalarOp)
+            #else: assert op_type in (ops.BatchSizeOp, ops.ScalarOp)
                 
         rate = self.hits*100/self.lookups if self.lookups > 0 else 0
         stats = (f'  OpsGraph ops count {len(self.ops):,}:\n'

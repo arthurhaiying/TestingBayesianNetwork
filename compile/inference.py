@@ -159,7 +159,16 @@ def __selected_cpt_v2(var,qcontext,sel_type,jt,og): # var is a tbn node
     ppost_op, host, view = __parents_posterior(var,scontext,jt,og)
     
     cpt_ops = [og.add_cpt_op(var,cpt,f'cpt{i+1}') for i,cpt in enumerate(var.cpts)]
-    threshold_ops = [og.add_cpt_op(var,thres,f'thres{i+1}') for i,thres in enumerate(var.thresholds)]
+    if og.trainable:
+        # if learnable, need to impose increasing constraints on thresholds
+        train_thresholds_op = og.add_trainable_thresholds_op(var, var.thresholds)
+        threshold_ops = []
+        for i in range(len(var.thresholds)):
+            cpt_type = f'thres{i+1}'
+            threshold_ops.append(og.add_ref_threshold_op(var,train_thresholds_op,cpt_type))
+    else:
+        threshold_ops = [og.add_cpt_op(var,thres,f'thres{i+1}') for i,thres in enumerate(var.thresholds)]
+
     sel_cpt_op = og.add_selected_cpt_op_v2(var,cpt_ops,ppost_op,threshold_ops,sel_type)
     jt.save_sel_cpt_op(var,sel_cpt_op) # cache it, looked up by _cpt_evd()
 

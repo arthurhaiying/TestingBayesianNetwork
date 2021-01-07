@@ -10,7 +10,7 @@ def play():
     """ networks: see networks/play.py for what the functions below do """
     #nplay.train_nets()
     #nplay.train_kidney()
-    nplay.train_fn2(size=8, card=3)
+    nplay.train_fn2(size=2, card=3)
     #validateHMM(30, 2, 10)
     print("Start experiment for HMM")
     #validateHMM(20, 2, 2)

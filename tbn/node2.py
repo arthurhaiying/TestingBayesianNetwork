@@ -84,7 +84,7 @@ class NodeV2(Node):
     @property
     def thresholds(self):  return self._thresholds
     @property
-    def n_intervals(self): return self._num_intervals
+    def num_intervals(self): return self._num_intervals
     
     """ public functions override"""
 

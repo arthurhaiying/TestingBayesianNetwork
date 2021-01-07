@@ -576,7 +576,21 @@ class SelectCptOpV2(Op):
                     indicators.append(ind)
                 
             elif self.sel_type == 'linear':
-                raise NotImplementedError("Linear selection v2 is not ready")
+                # for each interval [T_i, T_i+1]
+                thresholds[0] = tf.zeros(shape=thresholds[0].shape,dtype=p.float)
+                for i in range(len(thresholds)):
+                    if i == len(thresholds)-1:
+                        width = tf.subtract(1.0,thresholds[i])
+                    else:
+                        width = tf.subtract(thresholds[i+1],thresholds[i])
+                        # get interval length
+                    diff = tf.subtract(posterior,thresholds[i])
+                    ind = tf.divide(diff,width)
+                    ind = tf.clip_by_value(ind,0.0,1.0)
+                    ind = tf.expand_dims(ind,axis=-1)
+                    indicators.append(ind)
+                #raise NotImplementedError("Linear selection v2 is not ready")
+
 
             self.tensor = select_cpt_fn(cpts,indicators)
     
@@ -786,16 +800,17 @@ class TrainThresholdsOp(CptOp):
         self.weight_variables = []
         self.thresholds_spec = None # spec to build N-1 increaing thresholds
 
-    # returns trainable variables for N-1 threshol
+    # returns trainable variables for N-1 threshold
     def trainable_weight(self,distribution): # distribution is np array
         id     = next(self.weight_id)
         name   = f'w{id}'
         dtype  = p.float
         length = len(distribution)
         shape  = (length,)   # same as distribution.shape if zero_count=0  
-        step = 1.0/(length-1)
-        value = [step]*length
-        value[0] = 0.0
+        #step = 1.0/(length-1)
+        #value = [step]*length
+        #value[0] = 0.0
+        value = np.ones(length)
         
         # the only trainable variables in tac
         weight = tf.Variable(initial_value=value,trainable=True,
@@ -811,7 +826,7 @@ class TrainThresholdsOp(CptOp):
             return self.trainable_weight(thresholds) # fully trainable distribution, no zeros
         return tuple(self.spec(thres) for thres in thresholds)
 
-
+    '''
     # returns a tensor representing trainable thresholds from thres spec
     def trainable_thresholds(self,spec):
         if type(spec) is tuple: # spec for a conditional cpt
@@ -820,6 +835,41 @@ class TrainThresholdsOp(CptOp):
             # for one parent state
             thres = tf.math.cumsum(tf.math.abs(spec)) # increasing thresholds
             return tf.math.tanh(thres)
+    '''
+
+    # returns a tensor representing increasing trainable thresholds
+    def trainable_thresholds(self,spec):
+        # normalize 
+        def __thresholds(dists):
+            if type(dists) is tuple:
+                return tf.stack([__thresholds(dist) for dist in dists])
+            else:
+                # for each parent state
+                return tf.math.softmax(dists)
+
+        thresholds = __thresholds(spec) # shape (pcards,N-1)
+        arrays = []
+        for i in range(self.num_intervals-1):
+            # for each threshold
+            if i == 0:
+                thres = tf.gather(thresholds,indices=i,axis=-1)
+                arrays.append(thres)
+                # T_0 = p_0
+            else:
+                prev = arrays[-1]
+                thres = tf.gather(thresholds,indices=i,axis=-1)
+                thres = tf.add(prev, tf.multiply(tf.subtract(1.0,prev),thres))
+                # T_i = T_i-1 + (1-T_i-1)*p_i
+                arrays.append(thres)
+                # obtain increasing thresholds
+
+        result = tf.stack(arrays,axis=-1)
+        return result
+
+
+                
+
+
 
     # defines a spec for constructing the thresholds tensor, initializing weight variables
     def execute(self):

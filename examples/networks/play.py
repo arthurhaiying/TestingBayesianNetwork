@@ -61,7 +61,7 @@ def train_fn2(size,card):
         lambda x,y: .5*x*y*(x+y)]
     
     tbn, e1, e2, q = get.fn2_chain(size,card)
-    TAC = tac.TAC(tbn,[e1,e2],q,trainable=True,sel_type="sigmoid",profile=False)
+    TAC = tac.TAC(tbn,[e1,e2],q,trainable=True,sel_type="linear",profile=False)
     
     for fn in functions:
         evidence, marginals = data.simulate_fn2(fn,1024)

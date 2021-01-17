@@ -285,6 +285,14 @@ class TacGraph:
         
         self.update_lr = update_lr 
         self.reset_optimizer()
+
+    
+        # initialize weights to uniform
+        # becareful about initializing thresholds
+        for t in self.weight_variables:
+            value = [1.]*t.shape[0]
+            t.assign(value)
+
         self.training_ongoing = True
             
     # called after weights have been learned and saved

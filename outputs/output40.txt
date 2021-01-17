@@ -1,0 +1,1 @@
+Trial: 49 kl: 0.013105842 kl baseline1: 0.221422687 kl baseline2: 0.037809998

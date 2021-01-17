@@ -72,12 +72,14 @@ class LookUpTableV2:
     def __setitem__(self,key,value):
         if key < self._min or key > self._max:
             raise KeyError("Key out of range: {.5f}".format(key))
-        if len(value) != self._size:
-            raise ValueError("Invalid value size: {} should be {}".format(len(value),self._size))
         index = int((key-self._min-self.epsilon) / self._delta) 
         # becareful if key is very close to self._min or self._max
-        record = self._storage[index]
         weight,cpt = value
+        if len(cpt) != self._size:
+            raise ValueError("Invalid cpt size: {} should be {}".format(len(value),self._size))
+        
+        record = self._storage[index]
+        #weight,cpt = value
         avg_cpt, count, weights_acc = record.cpt, record.count, record.weights_acc
         new_avg_cpt = (avg_cpt*weights_acc + weight*cpt) / (weights_acc + weight) # compute new average cpt
         # increment count

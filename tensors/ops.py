@@ -57,6 +57,8 @@ class Op:
     mulpro_cache      = None
 
     GAMMA_VALUE = 50
+    MIN_THRES_VALUE = 0.1
+    MAX_THRES_VALUE = 0.9
     
     def __init__(self,inputs,vars):
         assert type(vars) is tuple
@@ -696,13 +698,14 @@ class TrainCptOp(CptOp):
 
         self.weight_variables.append(weight)
         return weight
+
     # return trainable variable (weight) with same size as distribution
     def trainable_weight_nd(self,distribution):
         id     = next(self.weight_id)
         name   = f'w{id}'
         dtype  = p.float
         shape = distribution.shape
-        value  = np.ones(shape)
+        value  = np.zeros(shape)
         
         # the only trainable variables in tac
         weight = tf.Variable(initial_value=value,trainable=True,
@@ -720,8 +723,9 @@ class TrainCptOp(CptOp):
     #    (corresponds to a distribution with some fixed zeros but not deterministic)
     def spec(self,cpt):
         if self.type == 'thres':
-            # threshold is a joint distribution
+            # for thresholds
             return self.trainable_weight_nd(cpt)
+            
         if cpt.ndim == 1: # cpt is a distribution
             zero_count = np.count_nonzero(cpt==0)
             if self.fix_zeros and zero_count > 0:
@@ -741,7 +745,9 @@ class TrainCptOp(CptOp):
     def trainable_cpt(self,spec):
         if self.type == 'thres':
             # trainable variable for thresholds, between 0 and 1
-            return tf.math.sigmoid(spec)
+            thres = tf.math.sigmoid(spec)
+            #thres = tf.add(tf.multiply(Op.MAX_THRES_VALUE-Op.MIN_THRES_VALUE, thres), Op.MIN_THRES_VALUE)
+            return thres
         if type(spec) is tuple: # spec for a conditional cpt
             return tf.stack([self.trainable_cpt(cond_spec) for cond_spec in spec])
         if type(spec) is list:  # distribution with fixed zeros
@@ -754,7 +760,13 @@ class TrainCptOp(CptOp):
             weight = tf.gather(params,indices)       # weight with -inf inserted
             return tf.math.softmax(weight)           # normalized distribution with zeros
         # trainable variable (weight), normalize it so it becomes a distribution
-        return tf.math.softmax(spec)
+        if self.type == 'thres':
+            thres = tf.sigmoid(spec)
+            thres = Op.MIN_THRES_VALUE + thres*(Op.MAX_THRES_VALUE - Op.MIN_THRES_VALUE)
+            # enforce range of thres between MIN_THRES_VALUE and MAX_THRES_VALUE
+            return thres
+        else:
+            return tf.math.softmax(spec) # normalize
         
     # defines a spec for constructing the cpt tensor, creating variables in the process
     def execute(self):
@@ -807,10 +819,7 @@ class TrainThresholdsOp(CptOp):
         dtype  = p.float
         length = len(distribution)
         shape  = (length,)   # same as distribution.shape if zero_count=0  
-        #step = 1.0/(length-1)
-        #value = [step]*length
-        #value[0] = 0.0
-        value = np.ones(length)
+        value = [1.0]*length if length > 1 else [0.0]
         
         # the only trainable variables in tac
         weight = tf.Variable(initial_value=value,trainable=True,
@@ -845,7 +854,10 @@ class TrainThresholdsOp(CptOp):
                 return tf.stack([__thresholds(dist) for dist in dists])
             else:
                 # for each parent state
-                return tf.math.softmax(dists)
+                if len(dists) > 1:
+                    return tf.math.softmax(dists)
+                else:
+                    return tf.math.sigmoid(dists)
 
         thresholds = __thresholds(spec) # shape (pcards,N-1)
         arrays = []

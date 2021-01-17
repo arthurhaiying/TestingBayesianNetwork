@@ -269,6 +269,15 @@ def evd_col2row(cols):
             rows[i].append(lambda_)
     return rows
 
+# convert index-based marginals to tac outputs
+# index-based marginals: a list representing values of query
+# tac ouptput: 2D numpy array
+def marg_hard2lambdas(marginals,card):
+    num_examples = np.array(marginals).size
+    lambdas = np.zeros((num_examples,card))
+    lambdas[np.arange(num_examples), np.array(marginals)] = 1.0
+    return lambdas
+
 # convert index-based evidence to tac inputs
 # index-based evidences: a list of list, each representing one instantion for all evidence variables
 # tac inputs: a list of 2D numpy arrays, each representing one evidence variable for all records

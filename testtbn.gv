@@ -4,39 +4,33 @@ digraph {
 	v1 [shape=circle]
 	v2 [shape=circle]
 	v3 [shape=circle]
-	v4 [shape=circle]
+	v4 [shape=circle style=filled]
 	v5 [shape=circle]
-	v6 [shape=circle]
+	v6 [shape=circle style=filled]
 	v7 [shape=circle]
 	v8 [shape=circle style=filled]
 	v9 [shape=circle style=filled]
-	v10 [shape=circle style=filled]
-	v11 [shape=circle style=filled]
+	v10 [shape=circle]
+	v11 [shape=circle]
 	v12 [shape=circle]
 	v13 [shape=circle]
 	v14 [shape=circle]
-	v15 [shape=circle]
+	v15 [shape=circle style=filled]
 	v16 [shape=circle]
-	v17 [shape=circle style=filled]
-	v18 [shape=circle]
-	v19 [shape=circle]
-	v0 -> v15
-	v1 -> v12
-	v2 -> v19
+	v0 -> v4
+	v1 -> v0
 	v3 -> v1
-	v6 -> v8
-	v6 -> v13
-	v7 -> v0
-	v8 -> v17
+	v4 -> v2
+	v5 -> v1
+	v7 -> v2
+	v9 -> v8
 	v10 -> v8
-	v10 -> v5
-	v10 -> v14
-	v11 -> v5
-	v13 -> v7
-	v15 -> v9
-	v16 -> v4
-	v16 -> v11
-	v18 -> v19
-	v19 -> v14
-	v19 -> v12
+	v11 -> v13
+	v12 -> v8
+	v12 -> v6
+	v13 -> v1
+	v14 -> v16
+	v14 -> v6
+	v15 -> v6
+	v16 -> v3
 }

@@ -54,7 +54,7 @@ class Trainer:
         # these may need to be tuned for different problems
         self.split_ratio        =  .200  # percentage of validation data
         self.epochs_count       =   500  # max number of epochs during training
-        self.weight_tries       =     5  # number of random initial weights to try
+        self.weight_tries       =    5  # number of random initial weights to try
         self.burn_in            =     3  # number epochs before starting learning schedule
         self.initial_lr         =  .050  # initial lr after burn in epochs
         self.decay_epochs       =   100  # number of epochs to decay lr to final value

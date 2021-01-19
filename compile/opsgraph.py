@@ -44,6 +44,7 @@ class Var:
 class OpsGraph:
 
     op_types   = ('m','p','mp','n','s','c')
+    USE_FIXED_THRESHOLDS = True
     
     def __init__(self,trainable,testing):
         self.trainable        = trainable # whether includes trainable CPTs
@@ -225,7 +226,11 @@ class OpsGraph:
         vars      = self.nodes2vars(nodes,add_batch)
         var       = vars[-1]            # dimension of var
         assert node.id == var.id        # var has last dimension in cpt
-        op = ops.SelectCptOpV2(var,vars,cpt_ops,threshold_ops,posterior,sel_type)
+        if sel_type in ops.SelectCptOpV2.sel_types:
+            op = ops.SelectCptOpV2(var,vars,cpt_ops,threshold_ops,posterior,sel_type)
+        else: 
+            op = ops.SelectCptOpV3(var,vars,cpt_ops,threshold_ops,posterior,sel_type)
+
         self.ops.append(op)
         return op
         
@@ -253,9 +258,11 @@ class OpsGraph:
         def cpt_op():
             if not self.trainable or node.fixed_cpt:
                 op = ops.FixedCptOp(var,cpt,cpt_type,vars)
-                # elif cpt_type.startswith('thres') and node.is_node_v2():
-                # thresholds in cpt selection v2 are fixed
-                # op = ops.FixedCptOp(var,cpt,cpt_type,vars)
+            elif cpt_type.startswith('thres') and self.USE_FIXED_THRESHOLDS:
+                # tac for training but use fixed thresholds
+                op = ops.FixedCptOp(var,cpt,cpt_type,vars)
+                self.train_cpt_labels.append('fixed_' + node.cpt_label[cpt_type])
+        
             else:
                 op = ops.TrainCptOp(var,cpt,cpt_type,node.fixed_zeros,vars)
                 self.train_cpt_labels.append(node.cpt_label[cpt_type])
@@ -288,7 +295,7 @@ class OpsGraph:
         vars   = self.nodes2vars(nodes,add_batch=False)
         var,vars    = vars[-1],vars[:-1]     # dimension of var
         assert node.id == var.id             # var has last dimension in cpt
-        assert node.num_intervals == len(thresholds)+1
+        assert node.num_intervals == len(thresholds)+1 or node.num_intervals == len(thresholds)
         assert self.shape(vars) == thresholds[0].shape # cpt matches ordered family
 
         # create op for training multiple thresholds

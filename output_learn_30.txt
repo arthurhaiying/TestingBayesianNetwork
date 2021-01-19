@@ -1,2 +1,2 @@
-Trial 0 kl loss bn: 0.000466499 kl loss tbn: 0.000325248
-Trial 1 kl loss bn: 0.012799463 kl loss tbn: 0.018480748
+Trial 0 kl loss bn: 0.000642245 kl loss tbn: 0.001677772
+Trial 1 kl loss bn: 0.000826055 kl loss tbn: 0.001300862

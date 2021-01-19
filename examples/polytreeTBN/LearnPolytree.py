@@ -17,7 +17,6 @@ if __name__ == '__main__':
 from examples.polytreeTBN.config import *
 
 
-NUM_INTERVALS = 2
 # posteriors smaller than this value is ignored
 
 from tbn.tbn import TBN
@@ -29,6 +28,9 @@ from examples.polytreeTBN.LookUpTable import LookUpTable
 import tbn.cpt as CPT
 import train.data as data
 from tac import TAC, TACV2
+
+from compile.opsgraph import OpsGraph as og
+og.USE_FIXED_THRESHOLDS = USE_FIXED_THRESHOLDS
 
 
 
@@ -95,8 +97,20 @@ def make_incomplete_tbn(bn,nodes_abs,cards_dict,alive_evidences,testing=False,fi
         elif id in alive_evidences.keys() and alive_evidences[id] and testing:
             # for tbn, child of abstracted nodes become testing nodes
             assert num_intervals is not None
-            #node2 = NodeV2(name,values=values,parents=parents,testing=True,num_intervals=num_intervals)
-            node2 = Node(name,values=values,parents=parents,testing=True)
+
+            if USE_NODE_V2:
+                card = len(values)
+                pcards = tuple([len(p.values) for p in parents])
+                if not USE_FIXED_THRESHOLDS:
+                    thress = [CPT.random2(pcards) for i in range(num_intervals)] # to make sure n_intervals match n_thresholds
+                else:
+                    step = 1.0/num_intervals
+                    thress = [step*(i+1) * np.ones(pcards) for i in range(num_intervals)]
+                    #thress = [CPT.random2(pcards) for i in range(num_intervals)] # to make sure n_intervals match n_thresholds
+                node2 = NodeV2(name,values=values,parents=parents,testing=True,thresholds=thress,
+                    num_intervals=num_intervals)
+            else:
+                node2 = Node(name,values=values,parents=parents,testing=True)
             tbn.add(node2)
 
         else:
@@ -138,11 +152,12 @@ def KL_divergence(dist_p,dist_q):
 
 def do_learn_polytree_tbn_experiment():
     dag = model.get_random_polytree(NUM_NODES,NUM_ITERS)
-    dag,q,e,x = model.random_query(dag)
+    #dag,q,e,x = model.random_query(dag)
+    dag,q,e,x,testing = model.random_query2(dag)
     dot(dag,q,e,x,fname="polytree.gv")
     print("query: %s evidence: %s abstracted: %s" %(q,e,x))
 
-    alive_evidences = polytreeBN.alloc_alive_evidences(q,e,x,dag)
+    alive_evidences = {t:[-1] for t in testing} # all testing nodes are active
     print("testing nodes %s" %(alive_evidences,))
     print("Start recover experiment...")
     bn,cards = model.sample_random_BN(dag,q,e,x) # sample true bn
@@ -232,7 +247,7 @@ def fit_and_find_best(tac,evidences,marginals):
 
 def do_avg_learn_polytree_tbn_experiment():
     bn_loss, tbn_loss = [], []
-    f = open("output_learn_%d.txt"%NUM_NODES,'w')
+    f = open("output_learn_%d_int_%d_grid_%s.txt"%(NUM_NODES,NUM_INTERVALS,USE_FIXED_THRESHOLDS),'w')
     for i in range(NUM_TRIALS):
         loss_ac, loss_tac = do_learn_polytree_tbn_experiment()
         bn_loss.append(loss_ac)
@@ -245,12 +260,66 @@ def do_avg_learn_polytree_tbn_experiment():
     f.close()
     print("Finish experiment.")
 
+def do_avg_learn_polytree_tbn_experiment_for_intervals():
+    dag = model.get_random_polytree(NUM_NODES,NUM_ITERS)
+    #dag,q,e,x = model.random_query(dag)
+    dag,q,e,x,testing = model.random_query2(dag)
+    dot(dag,q,e,x,fname="polytree.gv")
+    print("query: %s evidence: %s abstracted: %s" %(q,e,x))
+
+    alive_evidences = {t:[-1] for t in testing} # all testing nodes are active
+    print("testing nodes %s" %(alive_evidences,))
+    print("Start recover experiment...")
+    bn,cards = model.sample_random_BN(dag,q,e,x) # sample true bn
+    bn_incomplete = make_incomplete_tbn(bn,x,cards,alive_evidences,testing=False,fixed_cpt=FIXED_REGULAR_CPTS) # make incomplete bn
+    tbn_list = []
+    for n_interval in intervals_list:
+        tbn = make_incomplete_tbn(bn,x,cards,alive_evidences,testing=True,fixed_cpt=FIXED_REGULAR_CPTS,
+            num_intervals=n_interval) # make incomplete tbn
+        tbn_list.append(tbn)
+
+    # direct sample training set
+    ecards = list(map(lambda x: cards[x], e))
+    qcard = cards[q]
+    evidences,marginals = direct_sample(bn,q,e,cards,num_examples=NUM_EXAMPLES)
+    evidences,marginals = data.evd_hard2lambdas(evidences,ecards), data.marg_hard2lambdas(marginals,qcard)
+
+    # compile AC/TAC
+    inputs = ['v%d'%eid for eid in e]
+    output = 'v%d' % q
+    ac_true = TAC(bn,inputs,output,trainable=False)
+    ac_incomplete = TAC(bn_incomplete,inputs,output,trainable=True)
+    tac_list = [TAC(tbn,inputs,output,trainable=True,sel_type=SELECT_CPT_TYPE)
+        for tbn in tbn_list]
+
+    # training
+    print("Start training AC...")
+    #ac_incomplete.fit(evidences,marginals,loss_type='CE',metric_type='CE')
+    ac_incomplete = fit_and_find_best(ac_incomplete,evidences,marginals)
+    print("Finish training AC.")
+    print("Start training TAC...")
+    #tac_incomplete.fit(evidences,marginals,loss_type='CE',metric_type='CE')
+    tac_list = [fit_and_find_best(tac,evidences,marginals)
+        for tac in tac_list]
+    print("Finish training TAC...")
+
+    # evaluation
+    test_evidences = list(iter.product(*list(map(range,ecards)))) # enumerate all possible evidences
+    test_evidences = data.evd_hard2lambdas(test_evidences,ecards)
+    test_marginals = ac_true.evaluate(test_evidences)
+    marginals_ac = ac_incomplete.evaluate(test_evidences)
+    marginals_list = [tac.evaluate(test_evidences) for tac in tac_list]
+    kl_loss_ac = KL_divergence(test_marginals,marginals_ac)
+    kl_loss_list = [KL_divergence(test_marginals,marginals) for marginals in marginals_list]
+    print("kl loss AC: %.9f KL loss TAC: %s" %(kl_loss_ac,kl_loss_list))
+    return kl_loss_ac, kl_loss_list
 
 
 
 if __name__ == '__main__':
     #do_learn_polytree_tbn_experiment()
-    do_avg_learn_polytree_tbn_experiment()
+    #do_avg_learn_polytree_tbn_experiment()
+    do_avg_learn_polytree_tbn_experiment_for_intervals()
     
 
 

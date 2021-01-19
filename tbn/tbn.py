@@ -65,7 +65,7 @@ class TBN:
 
     # set the cpt selection function used by this tbn
     def set_select_type(self,type):
-        u.input_check(type in ('linear', 'threshold', 'sigmoid'), "Invalid selection type. Must be linear, threshold, or sigmoid")
+        u.input_check(type in ('linear', 'threshold', 'sigmoid','nearest'), "Invalid selection type. Must be linear, threshold, or sigmoid")
         self.sel_type = type
 
     def get_select_type(self):

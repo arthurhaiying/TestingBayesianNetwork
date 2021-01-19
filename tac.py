@@ -55,7 +55,7 @@ class TAC:
             'TAC inputs cannot be empty')
         u.input_check(output not in inputs,
             'TAC output cannot be one of its inputs')
-        u.input_check(sel_type in ('linear', 'threshold', 'sigmoid'), 'Invalid selection type')
+        u.input_check(sel_type in ('linear', 'threshold', 'sigmoid','nearest'), 'Invalid selection type')
         
         # inputs are names of tbn nodes
         # output is name of tbn node
@@ -288,7 +288,7 @@ class TACV2:
             'TAC inputs cannot be empty')
         u.input_check(all(o not in inputs for o in outputs),
             'TAC outputs cannot be one of its inputs')
-        u.input_check(sel_type in ('linear', 'threshold', 'sigmoid'), 'Invalid selection type')
+        u.input_check(sel_type in ('linear', 'threshold', 'sigmoid','nearest'), 'Invalid selection type')
         
         # inputs are names of tbn nodes
         # output is name of tbn node

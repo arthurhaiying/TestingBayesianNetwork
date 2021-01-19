@@ -56,10 +56,7 @@ class Op:
     project_cache     = None
     mulpro_cache      = None
 
-    GAMMA_VALUE = 50
-    MIN_THRES_VALUE = 0.1
-    MAX_THRES_VALUE = 0.9
-    
+    GAMMA_VALUE = 100
     def __init__(self,inputs,vars):
         assert type(vars) is tuple
 
@@ -173,6 +170,10 @@ class Op:
             elif type(op) is RefThresholdOp:
                 # retieve individual thresholds and append
                 #train_cpt_tensors.append(op.tensor)
+                op.execute()
+                train_cpt_tensors.append(op.tensor)
+            elif type(op) is FixedCptOp and op.type.startswith('thres') and ops_graph.trainable:
+                # train TAC but using fixed threshold, also report
                 op.execute()
                 train_cpt_tensors.append(op.tensor)
             else:
@@ -541,6 +542,7 @@ class SelectCptOpV2(Op):
         # thresholds: a list of CptOps representing N-1 thresholds  
         n_intervals = len(cpts)
         u.input_check(len(thresholds)==n_intervals-1, "Number of thresholds and cpts does not match")
+        u.input_check(sel_type in self.sel_types, "Select type %s not supported" % sel_type)
         inputs = [cpts,thresholds,posterior]
 
         Op.__init__(self,inputs,vars)
@@ -569,6 +571,8 @@ class SelectCptOpV2(Op):
                     ind = tf.expand_dims(ind,-1)
                     indicators.append(ind)
 
+                self.tensor = select_cpt_fn(cpts,indicators)
+
             elif self.sel_type == 'sigmoid':
                 gamma = tf.constant(Op.GAMMA_VALUE, dtype=p.float)
                 for thres in thresholds:
@@ -576,6 +580,8 @@ class SelectCptOpV2(Op):
                     ind = tf.sigmoid(tf.multiply(gamma,diff))
                     ind = tf.expand_dims(ind,-1)
                     indicators.append(ind)
+
+                self.tensor = select_cpt_fn(cpts,indicators)
                 
             elif self.sel_type == 'linear':
                 # for each interval [T_i, T_i+1]
@@ -592,9 +598,61 @@ class SelectCptOpV2(Op):
                     ind = tf.expand_dims(ind,axis=-1)
                     indicators.append(ind)
                 #raise NotImplementedError("Linear selection v2 is not ready")
+                self.tensor = select_cpt_fn(cpts,indicators)
 
+            #print("cpt shape: {}".format(self.tensor.shape))
+                
 
-            self.tensor = select_cpt_fn(cpts,indicators)
+""" constructs tensor representing the selected cpt of tbn node using multiple intervals"""
+class SelectCptOpV3(Op):
+    sel_types = ('nearest')
+    def __init__(self,var,vars,cpts,thresholds,posterior,sel_type):
+        # cpts: a list of CptOps representing N CPTs
+        # thresholds: a list of CptOps representing N-1 thresholds  
+        n_intervals = len(cpts)
+        u.input_check(sel_type in self.sel_types, "Select type %s not supported" % sel_type)
+        u.input_check(len(thresholds)==n_intervals, "Number of thresholds and cpts does not match")
+        inputs = [cpts,thresholds,posterior]
+
+        Op.__init__(self,inputs,vars)
+        self.var = var
+        self.label  = 'sel_cpt_%s_%s_v3' % (var.name,self.strvars)
+        self.dims   = d.get_dims(vars)
+        self.static = posterior.static
+        for cpt in cpts+thresholds:
+            if not cpt.static:
+                self.static = False
+        self.n_intervals = n_intervals
+        self.sel_type = sel_type
+
+    def execute(self):
+        i0,i1,i2 = self.inputs[0],self.inputs[1],self.inputs[2]
+        cpts = [cpt.tensor for cpt in i0]
+        thresholds = [thres.tensor for thres in i1]
+        posterior = i2.tensor
+
+        with tf.name_scope(self.label):
+            posterior = Op.flatten_and_order(posterior,i2.dims)
+
+            if self.sel_type == 'nearest':
+                # temp workaround for threshold 0
+                print("Use nearest neighbor selection.")
+                distances = []
+                for thres in thresholds:
+                    distance = tf.subtract(posterior,thres)
+                    distance = tf.abs(distance)
+                    distances.append(distance)
+                    # -|P_u - T_i|
+                
+                gamma = tf.constant(Op.GAMMA_VALUE, dtype=p.float)
+                distances = tf.stack(distances,axis=-1)
+                weights = tf.math.softmax(tf.negative(tf.multiply(gamma,distances)),axis=-1) 
+                # soft nearest neighbor
+                cpts = tf.stack(cpts,axis=-1)
+                weights = tf.expand_dims(weights,axis=-2)
+                self.tensor = tf.reduce_sum(tf.multiply(weights,cpts),axis=-1)
+
+            print("cpt shape: {}".format(self.tensor.shape))
     
 
 
@@ -723,9 +781,8 @@ class TrainCptOp(CptOp):
     #    (corresponds to a distribution with some fixed zeros but not deterministic)
     def spec(self,cpt):
         if self.type == 'thres':
-            # for thresholds
             return self.trainable_weight_nd(cpt)
-            
+            # for threshold
         if cpt.ndim == 1: # cpt is a distribution
             zero_count = np.count_nonzero(cpt==0)
             if self.fix_zeros and zero_count > 0:
@@ -760,13 +817,7 @@ class TrainCptOp(CptOp):
             weight = tf.gather(params,indices)       # weight with -inf inserted
             return tf.math.softmax(weight)           # normalized distribution with zeros
         # trainable variable (weight), normalize it so it becomes a distribution
-        if self.type == 'thres':
-            thres = tf.sigmoid(spec)
-            thres = Op.MIN_THRES_VALUE + thres*(Op.MAX_THRES_VALUE - Op.MIN_THRES_VALUE)
-            # enforce range of thres between MIN_THRES_VALUE and MAX_THRES_VALUE
-            return thres
-        else:
-            return tf.math.softmax(spec) # normalize
+        return tf.math.softmax(spec) # normalize
         
     # defines a spec for constructing the cpt tensor, creating variables in the process
     def execute(self):
@@ -806,7 +857,7 @@ class TrainThresholdsOp(CptOp):
     def __init__(self,var,thresholds,vars):
         CptOp.__init__(self,var,"thresholds",vars)
         self.static = False
-        self.num_intervals = len(thresholds)+1
+        self.num_thresholds = len(thresholds)
         self.thresholds = np.stack(tuple(thresholds),axis=-1) # numpy arrays
         self.weight_id = count()
         self.weight_variables = []
@@ -817,9 +868,14 @@ class TrainThresholdsOp(CptOp):
         id     = next(self.weight_id)
         name   = f'w{id}'
         dtype  = p.float
-        length = len(distribution)
+        assert len(distribution) == self.num_thresholds
+        if self.num_thresholds == 1:
+            length = 2
+            # use two weights for single p
+        else:
+            length = len(distribution)
         shape  = (length,)   # same as distribution.shape if zero_count=0  
-        value = [1.0]*length if length > 1 else [0.0]
+        value = [1.0]*length
         
         # the only trainable variables in tac
         weight = tf.Variable(initial_value=value,trainable=True,
@@ -854,14 +910,11 @@ class TrainThresholdsOp(CptOp):
                 return tf.stack([__thresholds(dist) for dist in dists])
             else:
                 # for each parent state
-                if len(dists) > 1:
-                    return tf.math.softmax(dists)
-                else:
-                    return tf.math.sigmoid(dists)
+                return tf.math.softmax(dists)
 
         thresholds = __thresholds(spec) # shape (pcards,N-1)
         arrays = []
-        for i in range(self.num_intervals-1):
+        for i in range(self.num_thresholds):
             # for each threshold
             if i == 0:
                 thres = tf.gather(thresholds,indices=i,axis=-1)

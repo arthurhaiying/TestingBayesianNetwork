@@ -311,6 +311,76 @@ def random_query(dag):
 
     return dag_pruned,node_q, nodes_evid, nodes_abs
 
+# make a random query over BN
+# dag - a list of list representing the adjacencies in a BN
+# returns a query (Q,E,X) where Q is a query node, E is a set of evidence nodes, X is a set of abstracted nodes
+def random_query(dag):
+    print("Search for a good query...")
+    while True:
+        n_nodes = len(dag)
+        # choose a query node from leaf nodes
+        leaves = [node for node in range(n_nodes) if len(dag[node]) == 0]
+        node_q = np.random.choice(leaves)
+
+        # ancestors_q of node q
+        ancestors_q = ancestors(node_q,dag)
+        # choose abstracted nodes from ancestors_q of node q
+        ancestors_q = list(ancestors_q)
+        num_abs_nodes = min(len(ancestors_q), MAX_NUM_ABSTRACTED_NODES)
+        nodes_abs = list(np.random.choice(ancestors_q,size=num_abs_nodes,replace=False))
+
+        # choose evidence nodes from the remaining nodes in dag
+        nodes_remaining = [node for node in range(n_nodes) if node != node_q and 
+            node not in nodes_abs]
+        num_evid_nodes = min(len(nodes_remaining), MAX_NUM_EVIDENCE_NODES)
+        #num_evid_nodes = min(len(nodes_remaining), MAX_NUM_EVIDENCE_NODES)
+        nodes_evid = list(np.random.choice(nodes_remaining,size=num_evid_nodes,replace=False))
+        # prune BN for this query
+        dag_pruned,node_q,nodes_evid,nodes_abs = prune(dag,node_q,nodes_evid,nodes_abs)
+
+        alive_evidences = polytreeBN.alloc_alive_evidences(node_q,nodes_evid,nodes_abs,dag_pruned)
+        alive_count = sum(map(lambda evid: len(evid) > 0, alive_evidences.values()))
+        # count node that has some alive evidence
+        if len(nodes_evid) >= MIN_NUM_EVIDENCE_NODES and len(nodes_abs) >= MIN_NUM_ABSTRACTED_NODES:
+            # find a good query
+            if alive_count >= len(alive_evidences) // 2:
+                break
+
+    return dag_pruned,node_q, nodes_evid, nodes_abs
+
+# make a random query over BN
+# dag - a list of list representing the adjacencies in a BN
+# returns a query (Q,E,X) where Q is a query node, E is a set of evidence nodes, X is a set of abstracted nodes
+def random_query2(dag):
+    print("Search for a good query...")
+    while True:
+        n_nodes = len(dag)
+        # choose a query node from leaf nodes
+        leaves = [node for node in range(n_nodes) if len(dag[node]) == 0]
+        node_q = np.random.choice(leaves)
+
+        nodes_remaining = set(range(n_nodes)) - set([node_q])
+        nodes_evid = list(np.random.choice(list(nodes_remaining),size=MAX_NUM_EVIDENCE_NODES,replace=False))
+        # prune BN for this query
+        dag_pruned,node_q,nodes_evid,_ = prune(dag,node_q,nodes_evid,[])
+        n_nodes = len(dag_pruned)
+        num_evid_nodes = len(nodes_evid) # evidence
+        #nodes_remaining = set(range(n_nodes)) - set(nodes_evid+[node_q])
+        #if len(nodes_remaining) < num_abs_nodes:
+            #num_abs_nodes = len(nodes_remaining)
+
+        nodes_abs = set(range(n_nodes)) - set(nodes_evid+[node_q])
+        num_abs_nodes = len(nodes_abs)
+        # choose all of remaining nodes as abstracted nodes
+        #nodes_abs = np.random.choice(list(nodes_remaining),size=num_abs_nodes,replace=False)
+        nodes_testing = set().union(*[set(dag_pruned[node_x]) for node_x in nodes_abs])
+        # every child of abstracted nodes are testing nodes
+        if num_evid_nodes >= MIN_NUM_EVIDENCE_NODES and num_abs_nodes >= MIN_NUM_ABSTRACTED_NODES:
+            # find a good query
+            break
+
+    return dag_pruned,node_q, nodes_evid, nodes_abs, nodes_testing
+
 def prune_dag(dag,prunes):
     dag2 = {}
     for node in dag.keys():

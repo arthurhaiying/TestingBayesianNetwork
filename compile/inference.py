@@ -145,7 +145,7 @@ def __selected_cpt(var,qcontext,sel_type,jt,og): # var is a tbn node
 """ 
 Adds ops that construct a tensor for the selected cpt of tbn node using multiple thresholds.
 """
-
+import numpy as np
 def __selected_cpt_v2(var,qcontext,sel_type,jt,og): # var is a tbn node
     print("Use CPT selection V2")
     assert var.testing
@@ -159,7 +159,7 @@ def __selected_cpt_v2(var,qcontext,sel_type,jt,og): # var is a tbn node
     ppost_op, host, view = __parents_posterior(var,scontext,jt,og)
     
     cpt_ops = [og.add_cpt_op(var,cpt,f'cpt{i+1}') for i,cpt in enumerate(var.cpts)]
-    if og.trainable:
+    if og.trainable and not og.USE_FIXED_THRESHOLDS:
         # if learnable, need to impose increasing constraints on thresholds
         train_thresholds_op = og.add_trainable_thresholds_op(var, var.thresholds)
         threshold_ops = []

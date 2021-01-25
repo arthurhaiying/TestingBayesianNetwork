@@ -9,33 +9,26 @@ import utils.utils as u
 """
 An Op has inputs (possibly empty) and one output, which is computed based on the
 inputs and other information stored with the Op.
-
 The Op output is a tensor representing one of the following: 
 evidence, cpt, selected cpt, projection, normalization, scaling, multiplication,
 multiplication_projection, scalar or batch_size.
-
 Every Op is associated with an ordered set of variables (abstraction of tbn nodes).
 The Op constructs a tensor that represents a factor over these variables.
-
 Every Op is also associated with a Dims object (dims.py), which represents a sequence
 of dimensions. A dimension is an ordered set of variables. A Dims object is therefore
 an aggregation of factor variables. The tensor computed by the Op is over Dims. That 
 is, each axis of the tensor is a set of variables instead of a single variable. This
 allows a more efficient implementation of factor operations using tensor operations.
-
 A tensor will have a batch variable if it depends on evidence.
 The batch variable has cardinality -1 (None) during compilation.
 The batch cardinality is determined dynamically when the tac is evaluated or trained
 and passed through the tensor of the batch-size op.
-
 Weight tensors are special: they are the only trainable tensors, are not the output 
 of operations and represent tac parameters (when normalized). Weight tensors are 
 used to construct trainable CPT tensors.
-
 CPT and weight tensors do not have a batch variable as they are shared between
 all members of a batch. However, selected CPT tensors have a batch variable 
 when the corresponding testing node is live.
-
 Three types of "root" tensors are constructed when executing Ops:
     # constants for fixed CPTs and scalars
     # trainable variables for weights of trainable CPTs
@@ -584,6 +577,7 @@ class SelectCptOpV2(Op):
                 self.tensor = select_cpt_fn(cpts,indicators)
                 
             elif self.sel_type == 'linear':
+                '''
                 # for each interval [T_i, T_i+1]
                 thresholds[0] = tf.zeros(shape=thresholds[0].shape,dtype=p.float)
                 for i in range(len(thresholds)):
@@ -597,7 +591,8 @@ class SelectCptOpV2(Op):
                     ind = tf.clip_by_value(ind,0.0,1.0)
                     ind = tf.expand_dims(ind,axis=-1)
                     indicators.append(ind)
-                #raise NotImplementedError("Linear selection v2 is not ready")
+                '''
+                raise NotImplementedError("Linear selection v2 is not ready")
                 self.tensor = select_cpt_fn(cpts,indicators)
 
             #print("cpt shape: {}".format(self.tensor.shape))
@@ -760,7 +755,7 @@ class TrainCptOp(CptOp):
     # return trainable variable (weight) with same size as distribution
     def trainable_weight_nd(self,distribution):
         id     = next(self.weight_id)
-        name   = f'w{id}'
+        name   = f'w{id}_thres'
         dtype  = p.float
         shape = distribution.shape
         value  = np.zeros(shape)
@@ -931,11 +926,6 @@ class TrainThresholdsOp(CptOp):
         result = tf.stack(arrays,axis=-1)
         return result
 
-
-                
-
-
-
     # defines a spec for constructing the thresholds tensor, initializing weight variables
     def execute(self):
         with tf.name_scope(self.label):
@@ -944,7 +934,3 @@ class TrainThresholdsOp(CptOp):
     def build_thresholds_tensor(self):
         with tf.name_scope(self.label):
             self.tensor = self.trainable_thresholds(self.thresholds_spec)
-
-    
-
-     

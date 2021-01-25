@@ -319,15 +319,15 @@ def prepare_tac_for_cond_cpts(bn,node,pids,eids,nodes_abs,cards_dict,scards_dict
         
     return __evaluate_fn
 
-def compute_prob_of_evidence(tbn,eids,cards_dict):
-    tbn1 = deepcopy(tbn)
+def compute_prob_of_evidence(bn,eids,cards_dict):
+    bn1 = deepcopy(bn)
     single = Node(name='single',parents=[],testing=False) # disconnected evidence
-    tbn1.add(single)
+    bn1.add(single)
 
     inputs = ['single']
     outputs = ['v%d'%eid for eid in eids]
     ecards = [cards_dict[eid] for eid in eids]
-    ac = TACV2(tbn1,inputs,outputs,trainable=False)
+    ac = TACV2(bn1,inputs,outputs,trainable=False)
     num_examples = 2
     evidences = data.evd_random(size=num_examples,cards=[2],hard_evidence=True)
     marginals = ac.evaluate(evidences)
@@ -397,11 +397,13 @@ def reparam_testing_node(node,bn,tbn,nodes_abs,nodes_t,cards_dict,scards_dict,ca
     testing_cpts = np.empty(tuple(pcards), dtype=object)
     for index in np.ndindex(*pcards):
         testing_cpts[index] = LookUpTableV2(size=scard,num_intervals=num_intervals)
+        #testing_cpts[index] = LookUpTable(size=scard,num_intervals=num_intervals)
         # initialize LookUpTable (thres -> cond cpt) for each super parent instantiation
 
     fnull = open(os.devnull,'w')
     sys.stdout,fnull = fnull, sys.stdout
-    prob_e = compute_prob_of_evidence(tbn,eids,cards_dict)
+    #prob_e = compute_prob_of_evidence(tbn,eids,cards_dict)
+    prob_e = compute_prob_of_evidence(bn,eids,cards_dict)
     ppost_tac = prepare_tac_for_parent_posterior(tbn,pids,eids,nodes_abs,cards_dict,scards_dict)
     # compile tac for computing parent posterior pr(x'v||e) on current tbn
     cond_cpt_tac = prepare_tac_for_cond_cpts(bn,node,pids,eids,nodes_abs,cards_dict,scards_dict,cards_map_dict)
@@ -438,8 +440,8 @@ def reparam_testing_node(node,bn,tbn,nodes_abs,nodes_t,cards_dict,scards_dict,ca
             if np.isclose(posterior, ZERO_POSTERIOR_VALUE):
                 continue
             lut = testing_cpts[pvalues]
-            #lut[posterior] = cond_cpt
-            lut[posterior] = (weight,cond_cpt)
+            #lut[posterior] = cond_cpt # for look up table v1
+            lut[posterior] = (weight,cond_cpt) # for look up table v2
             # use this cond_cpt of posteior fall into this interval
 
     # export thresholds and cpts from lookup tables
@@ -980,14 +982,14 @@ def test_dot():
 
 if __name__ == '__main__':
     #main1()
-    test_dot()
+    #test_dot()
     #test_cpt_selection_v2()
     #test_TAC_v2()
     #test_chain()
     #main1()
     #do_polytree_tbn_experiment()
-    #do_avg_poly_tree_tbn_experiment()
-    #do_polytree_tbn_experiment_for_intervals()
+    #do_avg_polytree_tbn_experiment()
+    do_polytree_tbn_experiment_for_intervals()
 
     
     

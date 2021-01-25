@@ -7,17 +7,13 @@ import utils.utils as u
 
 """
 An OpsGraph is constructed by a symbolic version of the jointree algorithm (inference.py).
-
 An OpsGraph is an abstraction of a tensorflow graph (tf.Graph).
 The tf.Graph is embedded in a TacGraph object (tacgraph.py).
 Executing the operations of an OpsGraph adds operations to tf.Graph and
 sets various attributes of the embedding TacGraph.
-
 Variables (Var) are abstractions of tbn nodes that contain id, cardinality and name.
-
 The batch variable is special: it is added to the variables of an operation if the
 operation output depends on evidence. 
-
 The batch variable has cardinality -1. The actual batch size determined when
 evaluating or training a tac.
 """
@@ -44,7 +40,7 @@ class Var:
 class OpsGraph:
 
     op_types   = ('m','p','mp','n','s','c')
-    USE_FIXED_THRESHOLDS = True
+    USE_FIXED_THRESHOLDS = False
     
     def __init__(self,trainable,testing):
         self.trainable        = trainable # whether includes trainable CPTs
@@ -229,6 +225,7 @@ class OpsGraph:
         if sel_type in ops.SelectCptOpV2.sel_types:
             op = ops.SelectCptOpV2(var,vars,cpt_ops,threshold_ops,posterior,sel_type)
         else: 
+            raise NotImplementedError("should not use type %s" %sel_type)
             op = ops.SelectCptOpV3(var,vars,cpt_ops,threshold_ops,posterior,sel_type)
 
         self.ops.append(op)

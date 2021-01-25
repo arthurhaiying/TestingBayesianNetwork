@@ -4,26 +4,20 @@ import utils.utils as u
 
 """
 Constructing a TAC using a trace of jointree inference.
-
 This file exposes only one function, trace(), which adds operations to an ops_graph 
 that are sufficient to construct a TAC when the ops_graph is executed (see opsgraph.py).
-
 In particular, the function adds operations to the ops_graph that construct tensors for 
 evidence, cpts, selected cpts and posterior over the given query node. 
-
 The ops_graph is an abstraction of a tensorflow graph (tf_graph). When the ops_graph 
 operations are 'executed', they construct tensors in a tf_graph that represents a TAC.
-
 Inference (to construct ops_graph) and execution (to construct tf_graph) happen when 
 a TAC object is constructed. The TAC object is simply a wrapper of the tf_graph. 
 The TAC object can be used to simulate data from the TAC, train the TAC based 
 on labeled data, and evaluate the TAC at some given evidence. All these functions are 
 done on the wrapped tf_graph (see tac.py).
-
 Evidence vars will always exist in the ops_graph and tf_graph even if they are pruned
 during jointree inference (pruned evidences node will have disconnected tensors so their
 values in user evidence will have no effect on TAC training or evaluation).
-
 In the following code:
 -- We use i, c1, c2, p, root, host for jointree nodes.
 -- We use var for tbn nodes.
@@ -175,7 +169,6 @@ def __selected_cpt_v2(var,qcontext,sel_type,jt,og): # var is a tbn node
 """              
 Returns an op that constructs a tensor for the posterior over parents of tbn node,
 which is used to select a cpt for the tbn node.
-
 scontext: captures the pruned tbn that is used for computing the parents posterior,
 see prune.py
 """
@@ -210,7 +203,6 @@ def __parents_posterior(var,scontext,jt,og): # var is a tbn node
 
 """
 Adds ops that construct a tensor for the posterior over a tbn node.
-
 qcontext: captures the pruned tbn that is used for computing the node posterior,
 see prune.py
 """
@@ -259,14 +251,11 @@ def __cpt_evd(i,vw,jt,og): # i is a jointree view node (leaf)
 
 """
 Multiplies cpt at view leaf with evidence on the cpt var and 'clamped' parents.
-
 Adding evidence on clamped parents amounts to conditioning the cpt on these 
 parents since we sum out these parents from the cluster when computing the 
 message to its neighbor (see set_separators_and_clusters() in separators.py).
-
 A functional var may have multiple (replicated) cpts: soft evidence is injected
 into exactly _one_ of these cpts, but hard evidence is injected into _all_ of them.
-
 The evd flag is used to decide whether we need to normalize or not. Evidence 
 on clamped parents is not integrated into this flag since such evidence only
 serves to select a subset of the cpt (does not actually lead to a posterior).
@@ -333,4 +322,3 @@ def __separator_marginal(vw,jt,og):
     sep     = vw.sep(root)
     
     return (op, evd, sep)
-    

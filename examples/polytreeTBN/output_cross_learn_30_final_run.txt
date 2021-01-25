@@ -1,0 +1,6 @@
+Trial 0 kl loss 1: 0.001343416 kl loss 2: 0.002325610 kl loss list: [0.0015726073, 0.002611109] 
+Trial 1 kl loss 1: 0.044462845 kl loss 2: 0.017411754 kl loss list: [0.025470065, 0.016397787] 
+Trial 2 kl loss 1: 0.029832987 kl loss 2: 0.011705660 kl loss list: [0.017186409, 0.01110211] 
+Trial 3 kl loss 1: 0.023395147 kl loss 2: 0.009287577 kl loss list: [0.013247161, 0.008690394] 
+Trial 4 kl loss 1: 0.022426944 kl loss 2: 0.007912559 kl loss list: [0.012033029, 0.007521889] 
+Trial 5 kl loss 1: 0.018808451 kl loss 2: 0.006689465 kl loss list: [0.010142615, 0.0063665877] 

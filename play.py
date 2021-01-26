@@ -1,18 +1,17 @@
 import examples.digits.play as dplay
 import examples.networks.play as nplay
 import examples.rectangles.play as rplay
-import examples.hiddenMarkov.HMMExperiment as experiment
-import examples.hiddenMarkov.TestingHMM as thmm
-import examples.hiddenMarkov.HMMRuntime as HMM
+import examples.polytreeTBN.LearnPolytree as polytree
 
 def play():
     
     """ networks: see networks/play.py for what the functions below do """
     #nplay.train_nets()
     #nplay.train_kidney()
-    nplay.train_fn2(size=2, card=2)
+    nplay.run_train_fn2(size=8, card=2)
     #validateHMM(30, 2, 10)
-    print("Start experiment for HMM")
+    print("Start experiment for polytree")
+    polytree.do_avg_learn_polytree_tbn_experiment()
     #validateHMM(20, 2, 2)
     '''
     validateHMM(10, 2, 1)

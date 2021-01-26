@@ -5,6 +5,9 @@ import re
 from copy import copy,deepcopy
 import itertools as iter
 
+from multiprocessing import Pool
+from tqdm import tqdm
+
 from pathlib import Path
 import os,sys
 
@@ -600,6 +603,8 @@ def reparam_tbn(dag,bn,node_q,nodes_evid,nodes_abs,cards_dict,scards_dict,cards_
     else:
         active_evidences = {node_t:[] for node_t in nodes_testing} # baseline: do not use evidence conditioning cpts
     # remove testing node with no active evidence
+    fnull = open(os.devnull,'w')
+    sys.stdout, fnull = fnull, sys.stdout
     for id in add_order:
         # add node in order
         name = 'v%d'%id
@@ -612,7 +617,7 @@ def reparam_tbn(dag,bn,node_q,nodes_evid,nodes_abs,cards_dict,scards_dict,cards_
             # if testing node, reparam testing cpts and add to 
             reparam_testing_node(node,bn,tbn,nodes_abs,nodes_testing,
                 cards_dict,scards_dict,cards_map_dict,active_evidences,num_intervals)
-
+    
     return tbn
 
 # reparam BN according to average policy
@@ -699,43 +704,6 @@ def dot(dag,node_q,nodes_evid,nodes_abs,fname="bn.gv"):
         print("Need to download graphviz")
 
 
-# do polytree experiment
-def main1():
-    dag = get_random_polytree(NUM_NODES,NUM_ITERS)
-    bn,cards = sample_random_BN(dag)
-    q,e,x = random_query(dag)
-    dot(dag,q,e,x,fname="bn.gv")
-    print("query: %s evidence: %s abstracted: %s" %(q,e,x))
-    t = testing_order(dag,q,x)
-    print("testing: %s" %(t,))
-    add_order = add_order_for_tbn(dag,t)
-    print("tbn order: %s" %(add_order,))
-    alive_evid = alloc_active_evidences(dag,e,t)
-    print("alive evidences: %s"% (alive_evid,))
-    alive_evid2 = polytreeBN.alloc_alive_evidences(q,e,x,dag)
-    print("alive evidences2:", alive_evid2)
-    scards = [(card+1)//2 for card in cards] # lose half states
-    cards_map_dict = []
-    for card,scard in zip(cards,scards):
-        cards_map = get_cards_map(card,scard)
-        cards_map_dict.append(cards_map)
-
-    tbn = reparam_tbn(dag,bn,q,e,x,cards,scards,cards_map_dict,num_intervals=NUM_INTERVALS)
-    inputs = ['v%d'%eid for eid in e]
-    output = 'v%d' % q
-    true_ac = TAC(bn,inputs,output,trainable=False)
-    incomplete_tac = TAC(tbn,inputs,output,trainable=False,sel_type='threshold') 
-
-    ecards = [cards[eid] for eid in e]
-    evidences = list(iter.product(*list(map(range,ecards)))) # enumerate all possible evidences
-    evidences = data.evd_hard2lambdas(evidences,ecards)
-    marginals1 = true_ac.evaluate(evidences)
-    marginals2 = incomplete_tac.evaluate(evidences)
-    print("marginals for true bn: %s" %(marginals1))
-    print("marginals for incomplete tbn: %s" %(marginals2))
-    kl_loss = KL_divergence(marginals1,marginals2)
-    print("loss: %.6f" %(kl_loss,))
-
 def do_polytree_tbn_experiment():
     dag = get_random_polytree(NUM_NODES,NUM_ITERS)
     dag,q,e,x = random_query(dag)
@@ -801,99 +769,15 @@ def do_avg_polytree_tbn_experiment():
     print("Finish experiments.")
     f.close()
 
-def test_chain():
-    dag = [[1],[2],[]] # v0 -> v1 -> v2
-    q,e,x = 2,[0],[1]
-    bn,cards = sample_random_BN(dag,q,e,x)
-    dot(dag,q,e,x,fname="bn.gv")
-    print("query: %s evidence: %s abstracted: %s" %(q,e,x))
-    t = testing_order(dag,q,x)
-    print("testing: %s" %(t,))
-    add_order = add_order_for_tbn(dag,t)
-    print("tbn order: %s" %(add_order,))
-    alive_evid = alloc_active_evidences(dag,e,t)
-    print("alive evidences: %s"% (alive_evid,))
-    alive_evid2 = polytreeBN.alloc_alive_evidences(q,e,x,dag)
-    print("alive evidences2:", alive_evid2)
-    scards = [(card+1)//2 for card in cards] # lose half states
-    cards_map_dict = []
-    for card,scard in zip(cards,scards):
-        cards_map = get_cards_map(card,scard)
-        cards_map_dict.append(cards_map)
-
-    tbn = reparam_tbn(dag,bn,q,e,x,cards,scards,cards_map_dict,num_intervals=NUM_INTERVALS)
-    inputs = ['v%d'%eid for eid in e]
-    output = 'v%d' % q
-    true_ac = TAC(bn,inputs,output,trainable=False)
-    incomplete_tac = TAC(tbn,inputs,output,trainable=False,sel_type='threshold') 
-
-    ecards = [cards[eid] for eid in e]
-    evidences = list(iter.product(*list(map(range,ecards)))) # enumerate all possible evidences
-    evidences = data.evd_hard2lambdas(evidences,ecards)
-    marginals1 = true_ac.evaluate(evidences)
-    marginals2 = incomplete_tac.evaluate(evidences)
-    print("marginals for true bn: %s" %(marginals1))
-    print("marginals for incomplete tbn: %s" %(marginals2))
-
-    
-
-
-def test_cpt_selection_v2():
-    dag = get_random_polytree(NUM_NODES,NUM_ITERS)
-    tbn,cards = sample_random_TBN(dag)
-    tbn2 = TBN("polytree2")
-    for node in tbn._add_order:
-        if not node.testing:
-            # copy regular nodes
-            name,values,parents,cpt = node.name,node.values,node.parents,node.cpt
-            parents = [tbn2.node(p.name) for p in parents]
-            node2 = Node(name,values=values,parents=parents,testing=False,cpt=cpt)
-            tbn2.add(node2)
-        else:
-            #if testing node, convert to nodeV2
-            name,values,parents = node.name,node.values,node.parents
-            parents = [tbn2.node(p.name) for p in parents]
-            node2 = NodeV2(name,values=values,parents=parents,testing=True,
-                cpts=[node.cpt1,node.cpt2],thresholds=[node.threshold],num_intervals=2)
-            tbn2.add(node2)
-
-    query,evidences,_ = random_query(dag)
-    num_examples = 1
-    inputs = ['v'+str(evid) for evid in evidences]
-    output = 'v'+str(query)
-    ecards = [cards[evid] for evid in evidences]
-    evidences = data.evd_random(size=num_examples,cards=ecards,hard_evidence=True)
-    tac = TAC(tbn,inputs=inputs,output=output,sel_type='sigmoid',trainable=False)
-    tac2 = TAC(tbn2,inputs=inputs,output=output,sel_type='sigmoid',trainable=False)
-    marginals = tac.evaluate(evidences)
-    print("marginals1: %s" %marginals)
-    marginals2 = tac2.evaluate(evidences)
-    print("marginals2: %s" %marginals2)
-
-def test_TAC_v2():
-    dag = get_random_polytree(NUM_NODES,NUM_ITERS)
-    dag,query,evidences,_ = random_query(dag)
-    tbn,cards = sample_random_TBN(dag)
-    num_examples = 5
-    dummy = Node(name='evid',values=['v0','v1'],parents=[]) # dummy evidence
-    tbn.add(dummy)
-    #inputs = ['v'+str(evid) for evid in evidences]
-    inputs = ['evid']
-    output = 'v'+str(query)
-    outputs = [output]
-    ecards = [cards[evid] for evid in evidences]
-    #dot(dag,query,evidences,[],fname="testtbn.gv")
-    #print("query: %s evidences: %s" %(query,evidences))
-    evidences = data.evd_random(size=num_examples,cards=[2],hard_evidence=True)
-    tac = TAC(tbn,inputs=inputs,output=output,sel_type='sigmoid',trainable=False)
-    tac2 = TACV2(tbn,inputs=inputs,outputs=outputs,sel_type='sigmoid',trainable=False)
-    marginals = tac.evaluate(evidences)
-    print("marginals1: %s" %marginals)
-    marginals2 = tac2.evaluate(evidences)
-    #print("query cards: %s" % (qcards,))
-    #print("marginals2 shape: %s" %(marginals2.shape,))
-    print("marginals2: %s" %marginals2)
-    assert np.allclose(marginals,marginals2)
+class reparam_tbn_fun_wrapper:
+    def __init__(self,dag,bn,q,e,x,cards,scards,cards_map_dict):
+        self.args = [dag,bn,q,e,x,cards,scards,cards_map_dict]
+    def __call__(self,num_intervals):
+        #fnull = open(os.devnull,'w')
+        #sys.stdout, sys.stderr = fnull, fnull
+        tbn = reparam_tbn(*self.args,num_intervals=num_intervals)
+        #sys.stdout, sys.stderr = sys.__stdout__, sys.__stderr__
+        return tbn
 
 def do_polytree_tbn_experiment_for_intervals():
     #intervals_list = [2] + list(10*i for i in range(1,6))
@@ -915,9 +799,11 @@ def do_polytree_tbn_experiment_for_intervals():
     bn_baseline2 = reparam_bn_soft_baseline(dag,bn,q,e,x,cards,scards,cards_map_dict)
 
     tbn_list = []
-    for intervals in intervals_list:
-        tbn = reparam_tbn(dag,bn,q,e,x,cards,scards,cards_map_dict,num_intervals=intervals)
-        tbn_list.append(tbn)
+    reparam_tbn_fun = reparam_tbn_fun_wrapper(dag,bn,q,e,x,cards,scards,cards_map_dict)
+    with Pool(NUM_WORKERS) as p:
+        for tbn in tqdm(p.imap(reparam_tbn_fun, intervals_list),total=len(intervals_list),desc="Reparam TBNs..."):
+            tbn_list.append(tbn)
+    print("Finish reparam TBNs")
 
     inputs = ['v%d'%eid for eid in e]
     output = 'v%d' % q

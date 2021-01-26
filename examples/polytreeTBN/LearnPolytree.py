@@ -8,8 +8,9 @@ import itertools as iter
 from pathlib import Path
 import os,sys
 from multiprocessing import Pool
-import tqdm
+from tqdm import tqdm
 #from examples.polytreeTBN.Pool import MyPool
+
 
 if __name__ == '__main__':
     #basepath = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
@@ -17,9 +18,10 @@ if __name__ == '__main__':
     #print("basepath: %s" %basepath)
     sys.path.append(str(basepath))
 
+
 from examples.polytreeTBN.config import *
 
-
+SEED = 1024
 # posteriors smaller than this value is ignored
 
 from tbn.tbn import TBN
@@ -79,9 +81,9 @@ def direct_sample(bn,node_q,nodes_evid,cards_dict,num_examples):
     return evidences,marginals
 
 # create incomplete bn/tbn over smaller cardinality space
-def make_incomplete_tbn(bn,nodes_abs,cards_dict,alive_evidences,num_intervals=None):
-    tbn = TBN("testing polytree")
-    scards_dict = {node_x:(cards_dict[node_x]+1)//2 for node_x in nodes_abs} 
+def make_incomplete_tbn(bn,nodes_abs,cards_dict,alive_evidences,num_intervals):
+    tbn = TBN("testing_polytree_%d " % num_intervals)
+    scards_dict = {node_x:(cards_dict[node_x]//2) for node_x in nodes_abs} 
     # abstracted nodes lose half cardinalities
     for node in bn.nodes:
         # for each node parent before child
@@ -100,7 +102,7 @@ def make_incomplete_tbn(bn,nodes_abs,cards_dict,alive_evidences,num_intervals=No
 
         elif id in alive_evidences.keys() and alive_evidences[id]:
             # for tbn, child of abstracted nodes become testing nodes
-            assert num_intervals is not None
+            #assert num_intervals is not None
             card = len(values)
             pcards = tuple([len(p.values) for p in parents])
             if USE_FIXED_THRESHOLDS:
@@ -189,15 +191,31 @@ def fit_and_find_best(tac,evidences,marginals):
     assert np.isclose(min_loss, tac.metric(val_evid,val_marg,metric_type='CE')) # make sure best tac
     return tac
 
-def reparam_tbn(args):
-    tbn = polytreeTBN.reparam_tbn(*args)
-    return tbn
+class learn_tbn_fun_wrapper:
+    def __init__(self,inputs,output,sel_type):
+        self.inputs = inputs
+        self.output = output
+        self.sel_type = sel_type
+    def add_dataset(self,train_evid,train_marg,test_evid):
+        self.train_evid = train_evid
+        self.train_marg = train_marg
+        self.test_evid = test_evid
+    def __call__(self,tbn_learn):
+        fnull = open(os.devnull,'w')
+        sys.stdout,sys.stderr = fnull, fnull
+        num_intervals = int(tbn_learn.name.split('_')[-1])
+        tac_learn = TAC(tbn_learn,self.inputs,self.output,sel_type=self.sel_type,trainable=True)
+        tac_learn.fit(self.train_evid,self.train_marg,loss_type='CE',metric_type='CE',fname="logs/cpts/%s.txt" % tbn_learn.name)
+        # train tac
+        test_marg = tac_learn.evaluate(self.test_evid) # evaluate on testing set
+        sys.stdout,sys.stderr = sys.__stdout__, sys.__stderr__
+        return test_marg
 
-def fit_tac(args):
-    return fit_and_find_best(*args)
 
-def do_learn_polytree_tbn_experiment():
+def do_learn_polytree_tbn_experiment(num_trial):
+    print("Start trial %d..." %num_trial)
     ''' step 1: sample true BN and query'''
+    random.seed(SEED + num_trial)
     dag = model.get_random_polytree(NUM_NODES,NUM_ITERS)
     #dag,q,e,x = model.random_query(dag)
     dag,q,e,x = model.random_query(dag)
@@ -232,10 +250,9 @@ def do_learn_polytree_tbn_experiment():
         cards_map = get_cards_map(card,scard)
         cards_map_dict.append(cards_map)
 
-    with Pool(processes=NUM_WORKERS) as pool:
-        parameters = [(dag,bn,q,e,x,cards,scards,cards_map_dict,interval) for interval in intervals_list]
-        for tbn_hand in tqdm(pool.imap_unordered(reparam_tbn,parameters),total=len(parameters)):
-            tbn_hand_list.append(tbn_hand)
+    for interval in intervals_list:
+        tbn_hand = polytreeTBN.reparam_tbn(dag,bn,q,e,x,cards,scards,cards_map_dict,num_intervals=interval)
+        tbn_hand_list.append(tbn_hand)
 
     tac_hand_list = [TAC(tbn_hand,inputs,output,trainable=False,sel_type='threshold')
         for tbn_hand in tbn_hand_list]
@@ -244,16 +261,9 @@ def do_learn_polytree_tbn_experiment():
     # training
     print("Start training...")
     #ac_incomplete.fit(evidences,marginals,loss_type='CE',metric_type='CE')
-
-    with Pool(processes=NUM_WORKERS) as pool:
-        parameters = [(tac_learn,evidences,marginals) for tac_learn in tac_learn_list]
-        tac_learn_list = []
-        for tac_learn in tqdm(pool.imap_unordered(fit_tac, parameters),total=len(parameters)):
-            tac_learn_list.append(tac_learn)
-    '''
     tac_learn_list  = [fit_and_find_best(tac_learn,evidences,marginals)
         for tac_learn in tac_learn_list]
-        '''
+
     print("Finish training TAC...")
 
     # evaluation
@@ -268,7 +278,86 @@ def do_learn_polytree_tbn_experiment():
     kl_learn_list = [KL_divergence(test_marginals,marginals_learn) for marginals_learn in marginals_learn_list]
     
     print("kl hand: %s kl learn: %s" %(kl_hand_list,kl_learn_list))
-    print("Finish recover experiment")
+    print("Finish trial %d..." %num_trial)
+    return kl_hand_list,kl_learn_list
+
+
+def do_multiprocess_learn_polytree_tbn_experiment(num_trial):
+    print("Start trial %d..." %num_trial)
+    ''' step 1: sample true BN and query'''
+    dag = model.get_random_polytree(NUM_NODES,NUM_ITERS)
+    #dag,q,e,x = model.random_query(dag)
+    dag,q,e,x = model.random_query(dag)
+    dot(dag,q,e,x,fname="polytree.gv")
+    print("query: %s evidence: %s abstracted: %s" %(q,e,x))
+
+    inputs = ['v%d'%eid for eid in e]
+    output = 'v%d' % q
+    alive_evidences = polytreeBN.alloc_alive_evidences(q,e,x,dag) # all testing nodes are active
+    print("testing nodes %s" %(alive_evidences,))
+    bn,cards = model.sample_random_BN(dag,q,e,x) # sample true bn
+    ac_true = TAC(bn,inputs,output,trainable=False)
+
+    # direct sample training set
+    ecards = list(map(lambda x: cards[x], e))
+    qcard = cards[q]
+    evidences,marginals = direct_sample(bn,q,e,cards,num_examples=NUM_EXAMPLES)
+    evidences,marginals = data.evd_hard2lambdas(evidences,ecards), data.marg_hard2lambdas(marginals,qcard)
+    # make testing set
+    test_evidences = list(iter.product(*list(map(range,ecards)))) # enumerate all possible evidences
+    test_evidences = data.evd_hard2lambdas(test_evidences,ecards)
+    test_marginals = ac_true.evaluate(test_evidences)
+
+    ''' step 2: make incomplete tbn for learning'''
+    tbn_learn_list = [make_incomplete_tbn(bn,x,cards,alive_evidences,num_intervals=interval) 
+        for interval in intervals_list]
+    #tac_learn_list = [TAC(tbn_learn,inputs,output,trainable=True,sel_type=SELECT_CPT_TYPE)
+        #for tbn_learn in tbn_learn_list]
+
+    ''' step 3: make incomplete tbn by handcraft'''
+    print("Start reparam tbn...")
+    tbn_hand_list = []
+    scards = [(card+1)//2 for card in cards] # lose half states
+    cards_map_dict = []
+    for card,scard in zip(cards,scards):
+        cards_map = get_cards_map(card,scard)
+        cards_map_dict.append(cards_map)
+
+    reparam_tbn_fun = polytreeTBN.reparam_tbn_fun_wrapper(dag,bn,q,e,x,cards,scards,cards_map_dict)
+    with Pool(NUM_WORKERS) as p:
+        #for tbn_hand in tqdm(p.imap(reparam_tbn_fun, intervals_list),total=len(intervals_list),desc="Reparam TBNs..."):
+        for tbn_hand in p.imap(reparam_tbn_fun, intervals_list):
+            tbn_hand_list.append(tbn_hand)
+    print("Finish reparam TBNs")
+
+
+    tac_hand_list = [TAC(tbn_hand,inputs,output,trainable=False,sel_type='threshold')
+        for tbn_hand in tbn_hand_list]
+
+    # training
+    print("Start training...")
+    #ac_incomplete.fit(evidences,marginals,loss_type='CE',metric_type='CE')
+
+    marginals_learn_list = []
+    learn_tbn_fun = learn_tbn_fun_wrapper(inputs,output,sel_type=SELECT_CPT_TYPE)
+    learn_tbn_fun.add_dataset(evidences,marginals,test_evidences)
+    with Pool(NUM_WORKERS) as p:
+        #for marginals in tqdm(p.imap(learn_tbn_fun, tbn_learn_list),total=len(tbn_learn_list),desc="Learning TBNs..."):
+        for marginals in p.imap(learn_tbn_fun, tbn_learn_list):
+            marginals_learn_list.append(marginals)
+            # train tac on dataset and evaluate
+
+    print("Finish learning TBNs")
+
+    # evaluation
+    marginals_hand_list = [tac_hand.evaluate(test_evidences) for tac_hand in tac_hand_list]
+    #marginals_learn_list = [tac_learn.evaluate(test_evidences) for tac_learn in tac_learn_list]
+
+    kl_hand_list = [KL_divergence(test_marginals,marginals_hand) for marginals_hand in marginals_hand_list]
+    kl_learn_list = [KL_divergence(test_marginals,marginals_learn) for marginals_learn in marginals_learn_list]
+    
+    print("kl hand: %s kl learn: %s" %(kl_hand_list,kl_learn_list))
+    print("Finish trial %d..." %num_trial)
     return kl_hand_list,kl_learn_list
 
 def do_avg_learn_polytree_tbn_experiment():
@@ -277,8 +366,7 @@ def do_avg_learn_polytree_tbn_experiment():
     f = open("output_%d_for_learn_final.txt"%NUM_NODES, mode='w')
 
     for i in range(NUM_TRIALS):
-        print("Start trial %d" %i)
-        kl_hand, kl_learn = do_learn_polytree_tbn_experiment()
+        kl_hand, kl_learn = do_multiprocess_learn_polytree_tbn_experiment(i)
         for list, kl in zip(kl_hand_lists,kl_hand):
             list.append(kl)
         for list, kl in zip(kl_learn_lists,kl_learn):
@@ -294,6 +382,29 @@ def do_avg_learn_polytree_tbn_experiment():
     print("Finish experiment.")
     f.close()
 
+def do_avg_multiprocess_learn_polytree_tbn_experiment():
+    kl_hand_lists = [[] for _ in range(len(intervals_list))]
+    kl_learn_lists = [[] for _ in range(len(intervals_list))]
+    f = open("output_%d_for_learn_final.txt"%NUM_NODES, mode='w')
+
+    with Pool(NUM_WORKERS) as p:
+        for i,(kl_hand,kl_learn) in enumerate(tqdm(p.imap_unordered(do_learn_polytree_tbn_experiment,range(NUM_TRIALS)),
+            total=NUM_TRIALS,desc="Do polytree learning...")):
+            for list, kl in zip(kl_hand_lists,kl_hand):
+                list.append(kl)
+            for list, kl in zip(kl_learn_lists,kl_learn):
+                list.append(kl)
+
+            means_hand = [np.array(kl_loss).mean() for kl_loss in kl_hand_lists]
+            means_learn =  [np.array(kl_loss).mean() for kl_loss in kl_learn_lists]
+            print("Trial %d kl hand: %s kl learn: %s" %(i,means_hand,means_learn))
+            f.write("Trial %d kl hand: %s kl learn: %s" %(i,means_hand,means_learn))
+            f.write('\n')
+            f.flush()
+
+    print("Finish experiment.")
+    f.close()
+
 def reparam(pid,args,result):
     print("Reparam p%d" % pid)
     tbn = polytreeTBN.reparam_tbn(*args)
@@ -302,7 +413,9 @@ def reparam(pid,args,result):
 
 
 if __name__ == '__main__':
-    do_avg_learn_polytree_tbn_experiment()
+    #do_learn_polytree_tbn_experiment()
+    #do_avg_learn_polytree_tbn_experiment()
+    do_avg_multiprocess_learn_polytree_tbn_experiment()
     
 
 

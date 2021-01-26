@@ -46,30 +46,50 @@ def __simulate_fit(tbn,e1,e2,q):
 
 """ train chain networks to fit various functions of the form z = f(x,y) """
 
-def train_fn2(size,card):
-    
-    functions = [
-#        lambda x,y: .7,
-#        lambda x,y: x,
-        lambda x,y: 0.5*math.exp(-5*(x-.5)**2-5*(y-.5)**2),
-        lambda x,y: .5 + .5 * math.sin(2*math.pi*x),
-        #lambda x,y: 1.0/(1+math.exp(-32*(y-.5))),
-        #lambda x,y: math.exp(math.sin(math.pi*(x+y))-1),
-        #lambda x,y:  (1-x)*(1-x)*(1-x)*y*y*y,
-        #lambda x,y: math.sin(math.pi*(1-x)*(1-y)),
-        #lambda x,y: math.sin((math.pi/2)*(2-x-y)),
-        lambda x,y: .5*x*y*(x+y)]
-    
+def fun1(x,y): return 0.5*math.exp(-5*(x-.5)**2-5*(y-.5)**2)
+def fun2(x,y): return .5 + .5 * math.sin(2*math.pi*x)
+def fun3(x,y): return 1.0/(1+math.exp(-32*(y-.5)))
+def fun4(x,y): return math.exp(math.sin(math.pi*(x+y))-1)
+def fun5(x,y): return (1-x)*(1-x)*(1-x)*y*y*y
+def fun6(x,y): return math.sin(math.pi*(1-x)*(1-y))
+def fun7(x,y): return math.sin((math.pi/2)*(2-x-y))
+def fun8(x,y): return.5*x*y*(x+y)
+
+functions = [fun1,fun2,fun3,fun4,fun5,fun6,fun7,fun8]
+
+class train_fn2_fun_wrapper:
+    def __init__(self,size,card):
+        self.size = size
+        self.card = card
+    def __call__(self,fn):
+        tac = train_fn2(self.size,self.card,fn)
+        return True
+
+def train_fn2(size,card,fn):
+    print("Start training fn...")
     tbn, e1, e2, q = get.fn2_chain(size,card)
-    TAC = tac.TAC(tbn,[e1,e2],q,trainable=True,sel_type="linear",profile=False)
+    TAC = tac.TAC(tbn,[e1,e2],q,trainable=True,sel_type="sigmoid",profile=False)
     
-    for fn in functions:
-        evidence, marginals = data.simulate_fn2(fn,1024)
-        visualize.plot3D(evidence,marginals,e1,e2,q)
-        
-        TAC.fit(evidence,marginals,loss_type='CE',metric_type='CE')
-        predictions = TAC.evaluate(evidence)
-        visualize.plot3D(evidence,predictions,e1,e2,q)
+    evidence, marginals = data.simulate_fn2(fn,1024)
+    #visualize.plot3D(evidence,marginals,e1,e2,q)
+    
+    TAC.fit(evidence,marginals,loss_type='CE',metric_type='CE')
+    predictions = TAC.evaluate(evidence)
+    #visualize.plot3D(evidence,predictions,e1,e2,q)
+    print("Finish training fn")
+    return TAC
+
+from multiprocessing import Pool
+def run_train_fn2(size,card):
+    NUM_WORKERS = 5
+    train_fn2_fun = train_fn2_fun_wrapper(size,card)
+    with Pool(NUM_WORKERS) as p:
+        tac_list = []
+        for ok in p.imap(train_fn2_fun,functions):
+            #tac_list.append(tac) # can we get learned tac?
+            print("ok: %s" %ok)
+
+    
         
 
 """ train an AC/TAC for data generated from the kidney model (showing Simpson's paradox) """

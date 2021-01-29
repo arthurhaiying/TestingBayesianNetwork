@@ -7,7 +7,8 @@ import itertools as iter
 
 from pathlib import Path
 import os,sys
-from multiprocessing import Pool
+import multiprocessing
+from multiprocessing import Pool,Process
 from tqdm import tqdm
 #from examples.polytreeTBN.Pool import MyPool
 
@@ -21,7 +22,7 @@ if __name__ == '__main__':
 
 from examples.polytreeTBN.config import *
 
-SEED = 1024
+
 # posteriors smaller than this value is ignored
 
 from tbn.tbn import TBN
@@ -216,9 +217,15 @@ def do_learn_polytree_tbn_experiment(num_trial):
     print("Start trial %d..." %num_trial)
     ''' step 1: sample true BN and query'''
     random.seed(SEED + num_trial)
-    dag = model.get_random_polytree(NUM_NODES,NUM_ITERS)
-    #dag,q,e,x = model.random_query(dag)
-    dag,q,e,x = model.random_query(dag)
+    np.random.seed(SEED + num_trial)
+    ok = False
+    dag,q,e,x = None,None,None,None
+    while not ok:
+        # search a good query
+        dag = model.get_random_polytree(NUM_NODES,NUM_ITERS)
+        #dag,q,e,x = model.random_query(dag)
+        ok,dag,q,e,x = model.random_query(dag)
+
     dot(dag,q,e,x,fname="polytree.gv")
     print("query: %s evidence: %s abstracted: %s" %(q,e,x))
 
@@ -285,9 +292,16 @@ def do_learn_polytree_tbn_experiment(num_trial):
 def do_multiprocess_learn_polytree_tbn_experiment(num_trial):
     print("Start trial %d..." %num_trial)
     ''' step 1: sample true BN and query'''
-    dag = model.get_random_polytree(NUM_NODES,NUM_ITERS)
-    #dag,q,e,x = model.random_query(dag)
-    dag,q,e,x = model.random_query(dag)
+    random.seed(SEED + num_trial)
+    np.random.seed(SEED + num_trial)
+    ok = False
+    dag,q,e,x = None,None,None,None
+    while not ok:
+        # search a good query
+        dag = model.get_random_polytree(NUM_NODES,NUM_ITERS)
+        #dag,q,e,x = model.random_query(dag)
+        ok,dag,q,e,x = model.random_query(dag)
+
     dot(dag,q,e,x,fname="polytree.gv")
     print("query: %s evidence: %s abstracted: %s" %(q,e,x))
 
@@ -325,8 +339,7 @@ def do_multiprocess_learn_polytree_tbn_experiment(num_trial):
 
     reparam_tbn_fun = polytreeTBN.reparam_tbn_fun_wrapper(dag,bn,q,e,x,cards,scards,cards_map_dict)
     with Pool(NUM_WORKERS) as p:
-        #for tbn_hand in tqdm(p.imap(reparam_tbn_fun, intervals_list),total=len(intervals_list),desc="Reparam TBNs..."):
-        for tbn_hand in p.imap(reparam_tbn_fun, intervals_list):
+        for tbn_hand in tqdm(p.imap(reparam_tbn_fun, intervals_list),total=len(intervals_list),desc="Reparam TBNs..."):
             tbn_hand_list.append(tbn_hand)
     print("Finish reparam TBNs")
 
@@ -342,8 +355,7 @@ def do_multiprocess_learn_polytree_tbn_experiment(num_trial):
     learn_tbn_fun = learn_tbn_fun_wrapper(inputs,output,sel_type=SELECT_CPT_TYPE)
     learn_tbn_fun.add_dataset(evidences,marginals,test_evidences)
     with Pool(NUM_WORKERS) as p:
-        #for marginals in tqdm(p.imap(learn_tbn_fun, tbn_learn_list),total=len(tbn_learn_list),desc="Learning TBNs..."):
-        for marginals in p.imap(learn_tbn_fun, tbn_learn_list):
+        for marginals in tqdm(p.imap(learn_tbn_fun, tbn_learn_list),total=len(tbn_learn_list),desc="Learning TBNs..."):
             marginals_learn_list.append(marginals)
             # train tac on dataset and evaluate
 
@@ -366,7 +378,7 @@ def do_avg_learn_polytree_tbn_experiment():
     f = open("output_%d_for_learn_final.txt"%NUM_NODES, mode='w')
 
     for i in range(NUM_TRIALS):
-        kl_hand, kl_learn = do_multiprocess_learn_polytree_tbn_experiment(i)
+        kl_hand, kl_learn = do_learn_polytree_tbn_experiment(i)
         for list, kl in zip(kl_hand_lists,kl_hand):
             list.append(kl)
         for list, kl in zip(kl_learn_lists,kl_learn):
@@ -388,7 +400,7 @@ def do_avg_multiprocess_learn_polytree_tbn_experiment():
     f = open("output_%d_for_learn_final.txt"%NUM_NODES, mode='w')
 
     with Pool(NUM_WORKERS) as p:
-        for i,(kl_hand,kl_learn) in enumerate(tqdm(p.imap_unordered(do_learn_polytree_tbn_experiment,range(NUM_TRIALS)),
+        for i,(kl_hand,kl_learn) in enumerate(tqdm(p.imap(do_learn_polytree_tbn_experiment,range(NUM_TRIALS)),
             total=NUM_TRIALS,desc="Do polytree learning...")):
             for list, kl in zip(kl_hand_lists,kl_hand):
                 list.append(kl)
@@ -405,17 +417,36 @@ def do_avg_multiprocess_learn_polytree_tbn_experiment():
     print("Finish experiment.")
     f.close()
 
-def reparam(pid,args,result):
-    print("Reparam p%d" % pid)
-    tbn = polytreeTBN.reparam_tbn(*args)
-    result.append((pid,tbn))
-    return
+def do_avg_multiprocess_learn_polytree_tbn_experiment2():
+    kl_hand_lists = [[] for _ in range(len(intervals_list))]
+    kl_learn_lists = [[] for _ in range(len(intervals_list))]
+    f = open("output_%d_for_learn_final.txt"%NUM_NODES, mode='w')
+
+    for i in range(NUM_TRIALS):
+        kl_hand, kl_learn = do_multiprocess_learn_polytree_tbn_experiment(i)
+        for list, kl in zip(kl_hand_lists,kl_hand):
+            list.append(kl)
+        for list, kl in zip(kl_learn_lists,kl_learn):
+            list.append(kl)
+
+        means_hand = [np.array(kl_loss).mean() for kl_loss in kl_hand_lists]
+        means_learn =  [np.array(kl_loss).mean() for kl_loss in kl_learn_lists]
+        print("Trial %d kl hand: %s kl learn: %s" %(i,means_hand,means_learn))
+        f.write("Trial %d kl hand: %s kl learn: %s" %(i,means_hand,means_learn))
+        f.write('\n')
+        f.flush()
+
+    print("Finish experiment.")
+    f.close()
+
 
 
 if __name__ == '__main__':
     #do_learn_polytree_tbn_experiment()
+    multiprocessing.set_start_method('spawn')
     #do_avg_learn_polytree_tbn_experiment()
-    do_avg_multiprocess_learn_polytree_tbn_experiment()
+    #do_avg_multiprocess_learn_polytree_tbn_experiment()
+    do_avg_multiprocess_learn_polytree_tbn_experiment2()
     
 
 

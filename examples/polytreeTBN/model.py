@@ -273,13 +273,16 @@ def ancestors(node_x, dag):
 
 
 
-
+INFINITE_LOOP = 100000
 # make a random query over BN
 # dag - a list of list representing the adjacencies in a BN
 # returns a query (Q,E,X) where Q is a query node, E is a set of evidence nodes, X is a set of abstracted nodes
 def random_query(dag):
     print("Search for a good query...")
+    ok = True
+    count = 0
     while True:
+        count += 1
         n_nodes = len(dag)
         # choose a query node from leaf nodes
         leaves = [node for node in range(n_nodes) if len(dag[node]) == 0]
@@ -308,8 +311,13 @@ def random_query(dag):
             # find a good query
             if alive_count >= len(alive_evidences) // 2:
                 break
+                
+        if count >= INFINITE_LOOP:
+            print("cannot find a good query!")
+            ok = False
+            break
 
-    return dag_pruned,node_q, nodes_evid, nodes_abs
+    return ok,dag_pruned,node_q, nodes_evid, nodes_abs
 
 
 # make a random query over BN

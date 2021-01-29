@@ -1,66 +1,26 @@
 digraph {
 	rankdir=TD
-	v0 [shape=doublecircle]
-	v1 [shape=circle]
-	v2 [shape=circle style=filled]
-	v3 [shape=circle]
+	v0 [shape=circle]
+	v1 [shape=circle style=filled]
+	v2 [shape=doublecircle]
+	v3 [shape=doublecircle]
 	v4 [shape=circle style=filled]
-	v5 [shape=circle]
-	v6 [shape=circle]
-	v7 [shape=circle]
-	v8 [shape=doublecircle]
+	v5 [shape=circle style=filled]
+	v6 [shape=circle style=filled]
+	v7 [shape=doublecircle]
+	v8 [shape=circle]
 	v9 [shape=circle]
-	v10 [shape=circle]
+	v10 [shape=doublecircle]
 	v11 [shape=circle]
-	v12 [shape=circle]
-	v13 [shape=circle style=filled]
-	v14 [shape=circle]
-	v15 [shape=doublecircle]
-	v16 [shape=circle style=filled]
-	v17 [shape=doublecircle]
-	v18 [shape=doublecircle]
-	v19 [shape=circle]
-	v20 [shape=doublecircle]
-	v21 [shape=doublecircle]
-	v22 [shape=circle]
-	v23 [shape=circle]
-	v24 [shape=circle style=filled]
-	v25 [shape=circle]
-	v26 [shape=circle style=filled]
-	v27 [shape=circle style=filled]
-	v28 [shape=doublecircle]
-	v29 [shape=circle]
-	v30 [shape=circle]
-	v31 [shape=circle style=filled]
-	v0 -> v20
-	v1 -> v2
-	v1 -> v30
-	v3 -> v4
-	v5 -> v6
-	v6 -> v11
+	v0 -> v1
+	v2 -> v8
+	v3 -> v8
+	v4 -> v10
+	v6 -> v8
+	v7 -> v5
 	v7 -> v2
-	v8 -> v18
-	v9 -> v15
-	v10 -> v13
-	v11 -> v24
-	v12 -> v26
-	v12 -> v10
-	v14 -> v15
-	v15 -> v21
-	v16 -> v29
-	v16 -> v12
-	v17 -> v18
-	v18 -> v21
-	v19 -> v2
-	v19 -> v4
-	v20 -> v21
-	v21 -> v22
-	v23 -> v18
-	v24 -> v25
-	v25 -> v26
-	v27 -> v11
-	v28 -> v21
-	v28 -> v24
-	v29 -> v30
-	v30 -> v31
+	v8 -> v11
+	v9 -> v4
+	v9 -> v1
+	v10 -> v3
 }

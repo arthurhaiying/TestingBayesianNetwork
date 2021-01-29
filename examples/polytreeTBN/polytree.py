@@ -773,10 +773,10 @@ class reparam_tbn_fun_wrapper:
     def __init__(self,dag,bn,q,e,x,cards,scards,cards_map_dict):
         self.args = [dag,bn,q,e,x,cards,scards,cards_map_dict]
     def __call__(self,num_intervals):
-        #fnull = open(os.devnull,'w')
-        #sys.stdout, sys.stderr = fnull, fnull
+        fnull = open(os.devnull,'w')
+        sys.stdout, sys.stderr = fnull, fnull
         tbn = reparam_tbn(*self.args,num_intervals=num_intervals)
-        #sys.stdout, sys.stderr = sys.__stdout__, sys.__stderr__
+        sys.stdout, sys.stderr = sys.__stdout__, sys.__stderr__
         return tbn
 
 def do_polytree_tbn_experiment_for_intervals():

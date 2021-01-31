@@ -5,6 +5,7 @@ import re
 from copy import copy,deepcopy
 import itertools as iter
 
+import multiprocessing
 from multiprocessing import Pool
 from tqdm import tqdm
 
@@ -873,6 +874,7 @@ if __name__ == '__main__':
     #test_TAC_v2()
     #test_chain()
     #main1()
+    multiprocessing.set_start_method('spawn')
     #do_polytree_tbn_experiment()
     #do_avg_polytree_tbn_experiment()
     do_polytree_tbn_experiment_for_intervals()

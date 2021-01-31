@@ -1,0 +1,62 @@
+digraph {
+	rankdir=TD
+	v0 [shape=circle]
+	v1 [shape=circle]
+	v2 [shape=circle style=filled]
+	v3 [shape=circle]
+	v4 [shape=circle style=filled]
+	v5 [shape=doublecircle]
+	v6 [shape=circle style=filled]
+	v7 [shape=circle]
+	v8 [shape=circle style=filled]
+	v9 [shape=circle]
+	v10 [shape=circle]
+	v11 [shape=circle]
+	v12 [shape=circle style=filled]
+	v13 [shape=doublecircle]
+	v14 [shape=circle]
+	v15 [shape=circle]
+	v16 [shape=doublecircle]
+	v17 [shape=circle]
+	v18 [shape=circle]
+	v19 [shape=circle]
+	v20 [shape=circle style=filled]
+	v21 [shape=circle]
+	v22 [shape=circle]
+	v23 [shape=circle style=filled]
+	v24 [shape=circle]
+	v25 [shape=circle]
+	v26 [shape=circle]
+	v27 [shape=circle]
+	v28 [shape=doublecircle]
+	v29 [shape=circle]
+	v1 -> v9
+	v2 -> v21
+	v2 -> v7
+	v3 -> v10
+	v5 -> v28
+	v5 -> v18
+	v5 -> v12
+	v9 -> v22
+	v10 -> v1
+	v10 -> v15
+	v12 -> v24
+	v12 -> v0
+	v13 -> v4
+	v13 -> v16
+	v14 -> v19
+	v15 -> v14
+	v16 -> v28
+	v17 -> v12
+	v17 -> v20
+	v18 -> v8
+	v18 -> v23
+	v20 -> v26
+	v21 -> v8
+	v22 -> v0
+	v24 -> v6
+	v25 -> v14
+	v25 -> v11
+	v27 -> v20
+	v28 -> v29
+}

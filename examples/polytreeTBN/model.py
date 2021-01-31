@@ -353,6 +353,86 @@ def random_query2(dag):
 
     return dag_pruned,node_q, nodes_evid, nodes_abs, nodes_testing
 
+
+INFINITE_LOOP = 100000
+# make a random query over BN
+# choose varying numnber of evidences
+# returns a query (Q,E,X) where Q is a query node, E is a set of evidence nodes, X is a set of abstracted nodes
+def random_query3(dag):
+    print("Search for a good query...")
+    ok = True
+    count = 0
+    while True:
+        count += 1
+        n_nodes = len(dag)
+        # choose a query node from leaf nodes
+        leaves = [node for node in range(n_nodes) if len(dag[node]) == 0]
+        node_q = np.random.choice(leaves)
+
+        # ancestors_q of node q
+        ancestors_q = ancestors(node_q,dag)
+        # choose abstracted nodes from ancestors_q of node q
+        ancestors_q = list(ancestors_q)
+        num_abs_nodes = min(len(ancestors_q), MAX_NUM_ABSTRACTED_NODES)
+        # all ancestors or no more than MAX ancestors as abstracted nodes
+        nodes_abs = ancestors_q[:num_abs_nodes]
+
+
+        # choose evidence nodes from the remaining nodes in dag
+        nodes_remaining = [node for node in range(n_nodes) if node != node_q and 
+            node not in nodes_abs]
+        assert len(nodes_remaining) >= evidence_size_list[-1] # enough remaining nodes
+
+        # choose incrementally more evidence for each trial
+        def random_evidence():
+            nodes_evid_list = []
+            nodes_evid_acc = []
+            for i,evid_size in enumerate(evidence_size_list):
+                # choose evidence for this trial
+                print("for Q %d" %i)
+                size = evid_size - len(nodes_evid_acc)
+                #print("remain nodes: %s evidence acc: %s" %(nodes_remaining,nodes_evid_acc))
+                remaining = list(set(nodes_remaining) - set(nodes_evid_acc))
+                count2 = 0
+                nodes_evid = None
+                while True:
+                    count2+=1
+                    nodes_evid = list(np.random.choice(remaining,size=size,replace=False))
+                    nodes_evid_acc_temp = nodes_evid_acc + nodes_evid
+                    _,_,nodes_evid_acc_temp2,_ = prune(dag,node_q,nodes_evid_acc_temp,nodes_abs)
+                    if count2 >= 1000:
+                        # cannot find good evidences
+                        print("cannot find good evidence for this trial.")
+                        return False,None
+
+                    if len(nodes_evid_acc_temp2) < len(nodes_evid_acc_temp):
+                        # if some evidences got pruned
+                        #print('pruned')
+                        continue
+
+                    alive_evidences = polytreeBN.alloc_alive_evidences(node_q,nodes_evid_acc_temp,nodes_abs,dag)
+                    alive_count = sum(map(lambda evid: len(evid) > 0, alive_evidences.values()))
+                    if alive_count <= len(alive_evidences) // 2:
+                        #print("not enough testing nodes")
+                        continue
+                    else:
+                        # find good evidence for this trial
+                        break
+                    
+                # add evidence for this trial
+                nodes_evid_acc.extend(nodes_evid)
+                nodes_evid_list.append(copy(nodes_evid_acc))
+
+            return True,nodes_evid_list
+
+        ok, nodes_evid_for_queries = random_evidence()
+        if ok:
+            return True,dag,node_q,nodes_evid_for_queries,nodes_abs
+        elif count >= INFINITE_LOOP:
+            print("cannot find a good query.")
+            return False,None,None,None,None
+
+
 def prune_dag(dag,prunes):
     dag2 = {}
     for node in dag.keys():
@@ -396,3 +476,30 @@ def prune(dag,node_q,nodes_evid,nodes_abs):
     return dag_pruned,node_q,nodes_evid,nodes_abs
 
 
+def dot(dag,node_q,nodes_evid,nodes_abs,fname="bn.gv"):
+    d = Digraph()
+    d.attr(rankdir='TD')
+    for node in range(len(dag)):
+        if node in nodes_evid:
+            d.node('v'+str(node),shape="circle", style="filled")
+        elif node in nodes_abs:
+            d.node('v'+str(node),shape="doublecircle")
+        else:
+            d.node('v'+str(node),shape="circle")
+    for node in range(len(dag)):
+        for child in dag[node]:
+            d.edge('v'+str(node),'v'+str(child))
+    try:
+        d.render(fname, view=False)
+    except:
+        print("Need to download graphviz")
+
+if __name__ == '__main__':
+    dag = get_random_polytree(NUM_NODES,NUM_ITERS)
+    ok,dag2,q,e,x = random_query(dag)
+    print("query: %s evidence: %s abstracted: %s" %(q,e,x))
+    ok,dag3,q,e_list,x = random_query3(dag)
+    for i,e in enumerate(e_list):
+        dot(dag,q,e,x,fname="polytree_query_%d.gv"%i)
+        print("query: %s evidence: %s abstracted: %s" %(q,e,x))
+    

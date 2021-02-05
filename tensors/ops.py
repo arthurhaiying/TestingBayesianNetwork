@@ -529,15 +529,20 @@ def select_cpt_fn(cpts,indicators):
 
 """ constructs tensor representing the selected cpt of tbn node using multiple intervals"""
 class SelectCptOpV2(Op):
-    sel_types = ('linear', 'threshold', 'sigmoid')
+    sel_types = ('linear', 'threshold', 'sigmoid','nearest')
     def __init__(self,var,vars,cpts,thresholds,posterior,sel_type):
         # cpts: a list of CptOps representing N CPTs
-        # thresholds: a list of CptOps representing N-1 thresholds  
-        n_intervals = len(cpts)
-        u.input_check(len(thresholds)==n_intervals-1, "Number of thresholds and cpts does not match")
+        # thresholds: a list of CptOps representing N-1 thresholds 
         u.input_check(sel_type in self.sel_types, "Select type %s not supported" % sel_type)
+        #print("Using %d cpts and %d thresholds" %(len(cpts),len(thresholds))) 
+        if sel_type == 'threshold' or sel_type == 'sigmoid':
+            u.input_check(len(thresholds)==len(cpts)-1, "Number of thresholds and cpts does not match")
+        elif sel_type == 'linear':
+            u.input_check(len(thresholds)==len(cpts)-2, "Number of thresholds and cpts does not match")
+        elif sel_type == 'nearest':
+            u.input_check(len(thresholds)==len(cpts), "Number of thresholds and cpts does not match")
+        
         inputs = [cpts,thresholds,posterior]
-
         Op.__init__(self,inputs,vars)
         self.var = var
         self.label  = 'sel_cpt_%s_%s_v2' % (var.name,self.strvars)
@@ -546,7 +551,6 @@ class SelectCptOpV2(Op):
         for cpt in cpts+thresholds:
             if not cpt.static:
                 self.static = False
-        self.n_intervals = n_intervals
         self.sel_type = sel_type
 
     def execute(self):
@@ -577,9 +581,9 @@ class SelectCptOpV2(Op):
                 self.tensor = select_cpt_fn(cpts,indicators)
                 
             elif self.sel_type == 'linear':
-                '''
                 # for each interval [T_i, T_i+1]
-                thresholds[0] = tf.zeros(shape=thresholds[0].shape,dtype=p.float)
+                zeros = tf.zeros(shape=thresholds[0].shape,dtype=p.float)
+                thresholds = [zeros] + thresholds
                 for i in range(len(thresholds)):
                     if i == len(thresholds)-1:
                         width = tf.subtract(1.0,thresholds[i])
@@ -591,9 +595,27 @@ class SelectCptOpV2(Op):
                     ind = tf.clip_by_value(ind,0.0,1.0)
                     ind = tf.expand_dims(ind,axis=-1)
                     indicators.append(ind)
-                '''
-                raise NotImplementedError("Linear selection v2 is not ready")
+                
+                #raise NotImplementedError("Linear selection v2 is not ready")
                 self.tensor = select_cpt_fn(cpts,indicators)
+
+            elif self.sel_type == 'nearest':
+                # temp workaround for threshold 0
+                print("Use nearest neighbor selection.")
+                distances = []
+                for thres in thresholds:
+                    distance = tf.subtract(posterior,thres)
+                    distance = tf.abs(distance)
+                    distances.append(distance)
+                    # -|P_u - T_i|
+                
+                gamma = tf.constant(Op.GAMMA_VALUE, dtype=p.float)
+                distances = tf.stack(distances,axis=-1)
+                weights = tf.math.softmax(tf.negative(tf.multiply(gamma,distances)),axis=-1) 
+                # soft nearest neighbor
+                cpts = tf.stack(cpts,axis=-1)
+                weights = tf.expand_dims(weights,axis=-2)
+                self.tensor = tf.reduce_sum(tf.multiply(weights,cpts),axis=-1)
 
             #print("cpt shape: {}".format(self.tensor.shape))
                 

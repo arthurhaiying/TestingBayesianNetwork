@@ -1,0 +1,48 @@
+digraph {
+	rankdir=TD
+	BirthAsphyxia [shape=circle style=filled]
+	Disease [shape=circle]
+	LVH [shape=circle style=filled]
+	DuctFlow [shape=circle]
+	CardiacMixing [shape=circle]
+	LungParench [shape=circle]
+	LungFlow [shape=circle]
+	Sick [shape=circle]
+	LVHreport [shape=circle]
+	HypDistrib [shape=circle]
+	HypoxiaInO2 [shape=circle]
+	CO2 [shape=circle]
+	ChestXray [shape=circle]
+	Grunting [shape=circle]
+	Age [shape=circle]
+	LowerBodyO2 [shape=circle]
+	RUQO2 [shape=circle style=filled]
+	CO2Report [shape=circle style=filled]
+	XrayReport [shape=circle style=filled]
+	GruntingReport [shape=circle style=filled]
+	BirthAsphyxia -> Disease
+	Disease -> LVH
+	Disease -> DuctFlow
+	Disease -> CardiacMixing
+	Disease -> LungParench
+	Disease -> LungFlow
+	Disease -> Sick
+	Disease -> Age
+	LVH -> LVHreport
+	DuctFlow -> HypDistrib
+	CardiacMixing -> HypDistrib
+	CardiacMixing -> HypoxiaInO2
+	LungParench -> HypoxiaInO2
+	LungParench -> CO2
+	LungParench -> ChestXray
+	LungParench -> Grunting
+	LungFlow -> ChestXray
+	Sick -> Grunting
+	Sick -> Age
+	HypDistrib -> LowerBodyO2
+	HypoxiaInO2 -> LowerBodyO2
+	HypoxiaInO2 -> RUQO2
+	CO2 -> CO2Report
+	ChestXray -> XrayReport
+	Grunting -> GruntingReport
+}

@@ -13,20 +13,15 @@ log2x = lambda s: log2(s) if s > 0 else 0
         
 """
 A jointree VIEW based on a 'host:' a leaf jointree node.
-
 A view is useful for traversing the jointree top-down or bottom-up, in a manner 
 akin to the pull and push passes on classical jointrees. A view is particularly
 useful for skipping pruned jointree nodes during a traversal, and skipping jointree
 nodes that become redundant due to pruning (nodes with two unpruned neighbors).
-
 The view root is the single neighbor of host (host is not part of the view).
-
 If a view is constructed with the 'pruned' flag set to True, pruned jointree nodes
 and ones with two unpruned neighbors will be excluded from the view. It is possible
 that only the host is unpruned, in which case the view is empty (has no root).
-
 Every node in a view has:
-
     # an unpruned parent: its neighbor closest to host.
       (the host is the root's parent)
     # zero or two unpruned children: its neighbors furthest from host.

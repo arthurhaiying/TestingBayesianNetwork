@@ -26,6 +26,7 @@ ZERO_POSTERIOR_VALUE = 0.0
 from tbn.tbn import TBN
 from tbn.node import Node
 from tbn.node2 import NodeV2
+import utils.VE as VE
 from examples.polytreeTBN.model import *
 import examples.polytreeBN.polytree as polytreeBN 
 from examples.polytreeTBN.LookUpTable import LookUpTable, LookUpTableV2 
@@ -221,6 +222,14 @@ def prepare_tac_for_parent_posterior(tbn,pids,eids,nodes_abs,cards_dict,scards_d
             return res
 
         return __evaluate_fn
+
+class my_AC:
+    def __init__(self,bn,inputs,output):
+        self.bn = bn
+        self.inputs = inputs
+        self.output = output
+    def evaluate(self,evidence):
+        return VE.posteriors(self.bn,inputs=self.inputs,output=self.output,evidence=evidence)
             
 # compile tac for evaluating the cond cpt for node pr(y|x've) in true bn given evidence on eids 
 # becareful that some parents v might be evidence in eids
@@ -251,7 +260,14 @@ def prepare_tac_for_cond_cpts(bn,node,pids,eids,nodes_abs,cards_dict,scards_dict
         input_ids = pids + eids
         inputs = ['v%d'%id for id in input_ids]
         output = 'v%d'% node_id(node)
+        print("inputs: %s" %inputs)
+        print("output: %s" %output)
+        try:
+            bn.dot(fname="asia what is happening.gv")
+        except:
+            print("Need to download graphviz")
         ac = TAC(bn,inputs,output,trainable=False)
+        #ac = my_AC(bn,inputs,output)
         # compile AC for evaluating posterior on y pr(y|xv'e)
 
 
@@ -263,6 +279,7 @@ def prepare_tac_for_cond_cpts(bn,node,pids,eids,nodes_abs,cards_dict,scards_dict
         # exclude parents that are also evidence from inputs
         output = 'v%s' % node_id(node)
         ac = TAC(bn,inputs,output,trainable=False)
+        #ac = my_AC(bn,inputs,output)
         # compile ac for evaluating the conditional cpt pr(y|x'v,e) given evidence on e
 
     def __evaluate_fn(evidence):
@@ -405,14 +422,14 @@ def reparam_testing_node(node,bn,tbn,nodes_abs,nodes_t,cards_dict,scards_dict,ca
         # initialize LookUpTable (thres -> cond cpt) for each super parent instantiation
 
     fnull = open(os.devnull,'w')
-    sys.stdout,fnull = fnull, sys.stdout
+    #sys.stdout,fnull = fnull, sys.stdout
     #prob_e = compute_prob_of_evidence(tbn,eids,cards_dict)
     prob_e = compute_prob_of_evidence(bn,eids,cards_dict)
     ppost_tac = prepare_tac_for_parent_posterior(tbn,pids,eids,nodes_abs,cards_dict,scards_dict)
     # compile tac for computing parent posterior pr(x'v||e) on current tbn
     cond_cpt_tac = prepare_tac_for_cond_cpts(bn,node,pids,eids,nodes_abs,cards_dict,scards_dict,cards_map_dict)
     # compile tac for computing the evidence-cond cpt pr(y|x'v, e) on true bn
-    sys.stdout,fnull = fnull, sys.stdout
+    #sys.stdout,fnull = fnull, sys.stdout
 
     # enumerate evidence instantiation
     ecards = [cards_dict[eid] for eid in eids]
@@ -601,11 +618,12 @@ def reparam_tbn(dag,bn,node_q,nodes_evid,nodes_abs,cards_dict,scards_dict,cards_
     assert flag in ('testing','baseline')
     if flag == 'testing':
         active_evidences = alloc_active_evidences(dag,nodes_evid,nodes_testing) # active evidences for each testing node
+        print("active evidences: %s" %active_evidences)
     else:
         active_evidences = {node_t:[] for node_t in nodes_testing} # baseline: do not use evidence conditioning cpts
     # remove testing node with no active evidence
     fnull = open(os.devnull,'w')
-    sys.stdout, fnull = fnull, sys.stdout
+    #sys.stdout, fnull = fnull, sys.stdout
     for id in add_order:
         # add node in order
         name = 'v%d'%id
@@ -645,6 +663,15 @@ def KL_divergence(dist_p,dist_q):
     dist_q = clip(dist_q)
     kl_loss = np.sum(dist_p * np.log(dist_p/dist_q),axis=-1)
     return np.mean(kl_loss)
+
+def cond_KL_divergence(weight,dist_p,dist_q):
+    batch_size = weight.size
+    assert dist_p.shape[0] == batch_size and dist_q.shape[0] == batch_size
+    dist_p = clip(dist_p)
+    dist_q = clip(dist_q)
+    kl_loss = np.sum(dist_p * np.log(dist_p/dist_q),axis=-1)
+    kl_loss = weight * kl_loss
+    return np.sum(kl_loss)
 
 # reparam BN according to soft policy
 # for each child Y of abstracted node, reparam Pr(Y|X'V) as Pr(Y|X \in X'V)
@@ -780,29 +807,14 @@ class reparam_tbn_fun_wrapper:
         sys.stdout, sys.stderr = sys.__stdout__, sys.__stderr__
         return tbn
 
-def do_polytree_tbn_experiment_for_intervals():
-    #intervals_list = [2] + list(10*i for i in range(1,6))
-    dag = get_random_polytree(NUM_NODES,NUM_ITERS)
-    dag,q,e,x = random_query(dag)
-    bn,cards = sample_random_BN(dag,q,e,x)
-    dot(dag,q,e,x,fname="polytree.gv")
-    print("query: %s evidence: %s abstracted: %s" %(q,e,x))
-    t = testing_order(dag,q,x)
-    alive_evid = alloc_active_evidences(dag,e,t)
-    print("alive evidences: %s"% (alive_evid,))
-    scards = [(card+1)//2 for card in cards] # lose half states
-    cards_map_dict = []
-    for card,scard in zip(cards,scards):
-        cards_map = get_cards_map(card,scard)
-        cards_map_dict.append(cards_map)
-
+def do_one_experiment(dag,bn,q,e,x,cards,scards,cards_map_dict):
     bn_baseline = reparam_bn_avg_baseline(dag,bn,q,e,x,cards,scards,cards_map_dict)
     bn_baseline2 = reparam_bn_soft_baseline(dag,bn,q,e,x,cards,scards,cards_map_dict)
 
     tbn_list = []
     reparam_tbn_fun = reparam_tbn_fun_wrapper(dag,bn,q,e,x,cards,scards,cards_map_dict)
     with Pool(NUM_WORKERS) as p:
-        for tbn in tqdm(p.imap(reparam_tbn_fun, intervals_list),total=len(intervals_list),desc="Reparam TBNs..."):
+        for tbn in tqdm(p.imap(reparam_tbn_fun, intervals_hand_list),total=len(intervals_hand_list),desc="Reparam TBNs..."):
             tbn_list.append(tbn)
     print("Finish reparam TBNs")
 
@@ -820,22 +832,44 @@ def do_polytree_tbn_experiment_for_intervals():
     ecards = [cards[eid] for eid in e]
     evidences = list(iter.product(*list(map(range,ecards)))) # enumerate all possible evidences
     evidences = data.evd_hard2lambdas(evidences,ecards)
+    prob_evid = compute_prob_of_evidence(bn,e,cards)
+    prob_evid = prob_evid.flatten()
     marginals = ac_true.evaluate(evidences)
     marginals_baseline = ac_baseline.evaluate(evidences)
     marginals_baseline2 = ac_baseline2.evaluate(evidences)
     marginals_list = [tac.evaluate(evidences) for tac in tac_list]
 
-    kl_loss_baseline1 = KL_divergence(marginals,marginals_baseline)
-    kl_loss_baseline2 = KL_divergence(marginals,marginals_baseline2)
-    kl_loss_list = [KL_divergence(marginals,marginals_tbn) for marginals_tbn in marginals_list]
+    kl_loss_baseline1 = cond_KL_divergence(prob_evid,marginals,marginals_baseline)
+    kl_loss_baseline2 = cond_KL_divergence(prob_evid,marginals,marginals_baseline2)
+    kl_loss_list = [cond_KL_divergence(prob_evid,marginals,marginals_tbn) for marginals_tbn in marginals_list]
     #print("kl loss: %.9f" %kl_loss)
     print("kl loss 1: %.9f kl loss 2: %.9f kl loss list: %s " %(kl_loss_baseline1, kl_loss_baseline2,
         kl_loss_list,))
     return kl_loss_baseline1, kl_loss_baseline2, kl_loss_list
+    
+
+def do_polytree_tbn_experiment_for_intervals():
+    #intervals_hand_list = [2] + list(10*i for i in range(1,6))
+    dag = get_random_polytree(NUM_NODES,NUM_ITERS)
+    dag,q,e,x = random_query(dag)
+    bn,cards = sample_random_BN(dag,q,e,x)
+    dot(dag,q,e,x,fname="polytree.gv")
+    print("query: %s evidence: %s abstracted: %s" %(q,e,x))
+    t = testing_order(dag,q,x)
+    alive_evid = alloc_active_evidences(dag,e,t)
+    print("alive evidences: %s"% (alive_evid,))
+    scards = [(card+1)//2 for card in cards] # lose half states
+    cards_map_dict = []
+    for card,scard in zip(cards,scards):
+        cards_map = get_cards_map(card,scard)
+        cards_map_dict.append(cards_map)
+
+    kl1, kl2, kl_list = do_one_experiment(dag,bn,q,e,x,cards,scards,cards_map_dict)
+    return kl1, kl2, kl_list
 
 def do_avg_polytree_tbn_experiment_for_intervals():
     kl_loss_1, kl_loss_2 = [], []
-    kl_loss_list = [[] for _ in range(len(intervals_list))]
+    kl_loss_list = [[] for _ in range(len(intervals_hand_list))]
     f = open("output_%d_for_interval.txt"%NUM_NODES, mode='w')
 
     for i in range(NUM_TRIALS):

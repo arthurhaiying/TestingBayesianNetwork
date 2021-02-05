@@ -188,7 +188,7 @@ def topo_sort(dag):
 
 # randomly generate a true BN of dag structure
 # return a tbn object
-def sample_random_BN(dag,node_q,nodes_evid,nodes_abs):
+def sample_random_BN(dag,nodes_abs):
     # sample polytree DAG
     n_nodes = len(dag)
     parent_list = get_parent_list(dag)
@@ -196,9 +196,7 @@ def sample_random_BN(dag,node_q,nodes_evid,nodes_abs):
     # return a topological ordering of nodes
     cards = []
     for node in range(n_nodes):
-        if node in nodes_evid:
-            cards.append(EVIDENCE_CARDINALITY)
-        elif node in nodes_abs:
+        if node in nodes_abs:
             cards.append(ABSTRACT_CARDINALITY)
         else:
             cards.append(np.random.randint(low=MIN_CARDINALITY,high=MAX_CARDINALITY+1))
@@ -273,53 +271,54 @@ def ancestors(node_x, dag):
 
 
 
-INFINITE_LOOP = 100000
+INFINITE_LOOP = 1000
 # make a random query over BN
 # dag - a list of list representing the adjacencies in a BN
 # returns a query (Q,E,X) where Q is a query node, E is a set of evidence nodes, X is a set of abstracted nodes
 def random_query(dag):
     print("Search for a good query...")
     ok = True
+    node_q,nodes_evid,nodes_abs = None,None,None
     count = 0
     while True:
         count += 1
+        if count >= INFINITE_LOOP:
+            print("cannot find a good query!")
+            return False,None,None,None
+
         n_nodes = len(dag)
         # choose a query node from leaf nodes
         leaves = [node for node in range(n_nodes) if len(dag[node]) == 0]
         node_q = np.random.choice(leaves)
 
         # ancestors_q of node q
-        ancestors_q = ancestors(node_q,dag)
+        ancestors_q = list(ancestors(node_q,dag))
         # choose abstracted nodes from ancestors_q of node q
-        ancestors_q = list(ancestors_q)
-        num_abs_nodes = min(len(ancestors_q), MAX_NUM_ABSTRACTED_NODES)
-        nodes_abs = list(np.random.choice(ancestors_q,size=num_abs_nodes,replace=False))
-
+        # all ancestors or no more than MAX ancestors as abstracted nodes
+        nodes_abs = ancestors_q
+        num_abs_nodes = len(nodes_abs)
         # choose evidence nodes from the remaining nodes in dag
         nodes_remaining = [node for node in range(n_nodes) if node != node_q and 
             node not in nodes_abs]
-        num_evid_nodes = min(len(nodes_remaining), MAX_NUM_EVIDENCE_NODES)
-        #num_evid_nodes = min(len(nodes_remaining), MAX_NUM_EVIDENCE_NODES)
-        nodes_evid = list(np.random.choice(nodes_remaining,size=num_evid_nodes,replace=False))
-        # prune BN for this query
-        dag_pruned,node_q,nodes_evid,nodes_abs = prune(dag,node_q,nodes_evid,nodes_abs)
 
-        alive_evidences = polytreeBN.alloc_alive_evidences(node_q,nodes_evid,nodes_abs,dag_pruned)
+        if len(nodes_remaining) < MAX_NUM_EVIDENCE_NODES:
+            # if not enough nodes for evidence
+            continue
+        nodes_evid = list(np.random.choice(nodes_remaining,size=MAX_NUM_EVIDENCE_NODES,replace=False))
+        _,_,nodes_evid2,_ = prune(dag,node_q,nodes_evid,nodes_abs) # pruned?
+        if len(nodes_evid2) < len(nodes_evid):
+            # if some evidences are pruned
+            continue
+
+        alive_evidences = polytreeBN.alloc_alive_evidences(node_q,nodes_evid,nodes_abs,dag)
         alive_count = sum(map(lambda evid: len(evid) > 0, alive_evidences.values()))
         # count node that has some alive evidence
-        if len(nodes_evid) >= MIN_NUM_EVIDENCE_NODES and len(nodes_abs) >= MIN_NUM_ABSTRACTED_NODES:
-            # find a good query
-            if alive_count >= len(alive_evidences) // 2:
-                break
-                
-        if count >= INFINITE_LOOP:
-            print("cannot find a good query!")
-            ok = False
+        if num_abs_nodes >= MIN_NUM_ABSTRACTED_NODES and alive_count >= len(alive_evidences) // 2:
             break
+                
+    return ok,node_q, nodes_evid, nodes_abs
 
-    return ok,dag_pruned,node_q, nodes_evid, nodes_abs
-
-
+'''
 # make a random query over BN
 # dag - a list of list representing the adjacencies in a BN
 # returns a query (Q,E,X) where Q is a query node, E is a set of evidence nodes, X is a set of abstracted nodes
@@ -352,7 +351,7 @@ def random_query2(dag):
             break
 
     return dag_pruned,node_q, nodes_evid, nodes_abs, nodes_testing
-
+'''
 
 INFINITE_LOOP = 100000
 # make a random query over BN
@@ -431,6 +430,67 @@ def random_query3(dag):
         elif count >= INFINITE_LOOP:
             print("cannot find a good query.")
             return False,None,None,None,None
+
+
+INFINITE_LOOP = 1000
+# make a random query over BN
+# choose varying numnber of evidences
+# returns a query (Q,E,X) where Q is a query node, E is a set of evidence nodes, X is a set of abstracted nodes
+def random_query4(dag,node_q,nodes_abs,num_evid_nodes):
+    print("Search for a good query...")
+    ok = True
+    while True:
+        n_nodes = len(dag)
+        # choose evidence nodes from the remaining nodes in dag
+        nodes_remaining = [node for node in range(n_nodes) if node != node_q and 
+            node not in nodes_abs]
+        assert len(nodes_remaining) >= num_evid_nodes # enough remaining nodes
+
+        # choose num_evid evidences for NUM_EVID_TRIALS
+        def random_evidence():
+            nodes_evid_list = []
+            for i in range(NUM_EVID_TRIALS):
+                # choose evidence for this trial
+                #print("for evid trial %d:" %i)
+                count2 = 0
+                nodes_evid = None
+                while True:
+                    count2+=1
+                    nodes_evid = list(np.random.choice(nodes_remaining,size=num_evid_nodes,replace=False))
+                    _,_,nodes_evid2,_ = prune(dag,node_q,nodes_evid,nodes_abs) #prune?
+                    if count2 >= 1000:
+                        # cannot find good evidences
+                        print("cannot find good evidence for evid trial %d." %i)
+                        return False,None
+
+                    if len(nodes_evid2) < len(nodes_evid):
+                        # if some evidences got pruned
+                        #print('pruned')
+                        continue
+
+                    if nodes_evid in nodes_evid_list:
+                        # if already in previous evid trial
+                        continue
+
+                    alive_evidences = polytreeBN.alloc_alive_evidences(node_q,nodes_evid,nodes_abs,dag)
+                    alive_count = sum(map(lambda evid: len(evid) > 0, alive_evidences.values()))
+                    if alive_count <= len(alive_evidences) // 2:
+                        #print("not enough testing nodes")
+                        continue
+                    else:
+                        # find good evidence for this trial
+                        break
+                    
+                # add evidence for this trial
+                nodes_evid_list.append(nodes_evid)
+
+            return True,nodes_evid_list
+
+        ok, nodes_evid_list = random_evidence()
+        if ok:
+            return True,nodes_evid_list
+        else:
+            return False,None
 
 
 def prune_dag(dag,prunes):

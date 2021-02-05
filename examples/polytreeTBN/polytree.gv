@@ -2,111 +2,81 @@ digraph {
 	rankdir=TD
 	v0 [shape=circle]
 	v1 [shape=circle]
-	v2 [shape=circle style=filled]
+	v2 [shape=doublecircle]
 	v3 [shape=circle]
 	v4 [shape=circle]
 	v5 [shape=circle]
-	v6 [shape=circle style=filled]
-	v7 [shape=doublecircle]
-	v8 [shape=doublecircle]
-	v9 [shape=circle style=filled]
-	v10 [shape=circle]
-	v11 [shape=circle style=filled]
-	v12 [shape=doublecircle]
+	v6 [shape=doublecircle]
+	v7 [shape=circle style=filled]
+	v8 [shape=circle]
+	v9 [shape=doublecircle]
+	v10 [shape=circle style=filled]
+	v11 [shape=circle]
+	v12 [shape=circle]
 	v13 [shape=circle]
-	v14 [shape=circle style=filled]
+	v14 [shape=doublecircle]
 	v15 [shape=circle]
 	v16 [shape=circle]
-	v17 [shape=circle]
-	v18 [shape=circle style=filled]
-	v19 [shape=circle style=filled]
-	v20 [shape=circle style=filled]
-	v21 [shape=doublecircle]
+	v17 [shape=circle style=filled]
+	v18 [shape=circle]
+	v19 [shape=circle]
+	v20 [shape=doublecircle]
+	v21 [shape=circle]
 	v22 [shape=circle]
-	v23 [shape=doublecircle]
+	v23 [shape=circle]
 	v24 [shape=circle]
 	v25 [shape=circle]
 	v26 [shape=circle]
-	v27 [shape=circle]
-	v28 [shape=circle style=filled]
-	v29 [shape=circle]
+	v27 [shape=doublecircle]
+	v28 [shape=circle]
+	v29 [shape=circle style=filled]
 	v30 [shape=circle]
 	v31 [shape=circle]
 	v32 [shape=circle]
 	v33 [shape=circle]
-	v34 [shape=circle style=filled]
+	v34 [shape=circle]
 	v35 [shape=circle]
-	v36 [shape=doublecircle]
+	v36 [shape=circle]
 	v37 [shape=circle]
-	v38 [shape=circle]
-	v39 [shape=circle]
-	v40 [shape=circle]
-	v41 [shape=circle]
-	v42 [shape=doublecircle]
-	v43 [shape=doublecircle]
-	v44 [shape=doublecircle]
-	v45 [shape=doublecircle]
-	v46 [shape=circle]
-	v47 [shape=doublecircle]
-	v48 [shape=circle]
-	v49 [shape=circle]
-	v50 [shape=circle]
-	v51 [shape=circle style=filled]
-	v52 [shape=circle]
-	v53 [shape=circle style=filled]
-	v54 [shape=doublecircle]
-	v0 -> v52
-	v1 -> v52
-	v1 -> v2
-	v3 -> v50
-	v4 -> v11
-	v5 -> v6
-	v5 -> v20
-	v7 -> v8
-	v8 -> v36
-	v10 -> v4
-	v12 -> v14
-	v12 -> v27
-	v13 -> v14
-	v15 -> v3
-	v16 -> v9
-	v17 -> v18
-	v21 -> v22
-	v22 -> v42
-	v23 -> v10
-	v23 -> v43
-	v24 -> v18
-	v25 -> v20
-	v26 -> v18
-	v28 -> v29
-	v29 -> v30
-	v30 -> v31
-	v31 -> v32
-	v32 -> v33
-	v33 -> v34
-	v34 -> v16
-	v35 -> v51
-	v36 -> v37
-	v36 -> v47
-	v37 -> v41
-	v38 -> v39
+	v38 [shape=doublecircle]
+	v39 [shape=doublecircle]
+	v1 -> v19
+	v2 -> v9
+	v3 -> v35
+	v4 -> v5
+	v4 -> v22
+	v6 -> v35
+	v6 -> v9
+	v7 -> v30
+	v7 -> v38
+	v8 -> v25
+	v9 -> v31
+	v9 -> v37
+	v11 -> v23
+	v11 -> v26
+	v11 -> v30
+	v12 -> v17
+	v13 -> v25
+	v14 -> v20
+	v14 -> v10
+	v14 -> v0
+	v15 -> v5
+	v16 -> v35
+	v18 -> v28
+	v19 -> v10
+	v20 -> v9
+	v21 -> v29
+	v21 -> v12
+	v22 -> v16
+	v23 -> v24
+	v27 -> v8
+	v27 -> v34
+	v27 -> v9
+	v29 -> v39
+	v32 -> v35
+	v32 -> v18
+	v34 -> v33
+	v36 -> v30
 	v38 -> v6
-	v39 -> v3
-	v39 -> v10
-	v40 -> v41
-	v41 -> v2
-	v42 -> v43
-	v43 -> v18
-	v43 -> v44
-	v44 -> v45
-	v44 -> v34
-	v45 -> v36
-	v46 -> v39
-	v46 -> v19
-	v47 -> v12
-	v48 -> v0
-	v49 -> v19
-	v50 -> v51
-	v52 -> v53
-	v54 -> v42
+	v39 -> v6
 }

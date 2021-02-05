@@ -1,0 +1,73 @@
+cpt: h_0 | 
+[0.8965 0.1035]
+
+cpt1 (tie_id transition__(2, 2)): h_1 | h_0
+[[0.9592 0.0408]
+ [0.4132 0.5868]]
+
+cpt2 (tie_id transition__(2, 2)): h_1 | h_0
+[[0.6356 0.3644]
+ [0.1785 0.8215]]
+
+thres1 (tie_id transition__(2, 2)): h_1 | h_0
+[0.7583 0.3757]
+
+thres1 (tie_id transition__(2, 2)): h_2 | h_1
+[0.8142 0.4507]
+
+thres1 (tie_id transition__(2, 2)): h_3 | h_2
+[0.8424 0.4257]
+
+thres1 (tie_id transition__(2, 2)): h_4 | h_3
+[0.5989 0.3635]
+
+thres1 (tie_id transition__(2, 2)): h_5 | h_4
+[0.7734 0.3027]
+
+thres1 (tie_id transition__(2, 2)): h_6 | h_5
+[0.8416 0.4889]
+
+thres1 (tie_id transition__(2, 2)): h_7 | h_6
+[0.6067 0.4623]
+
+thres1 (tie_id transition__(2, 2)): h_8 | h_7
+[0.4366 0.3216]
+
+thres1 (tie_id transition__(2, 2)): h_9 | h_8
+[0.6550 0.1803]
+
+cpt1 (tie_id emission__(2, 2)): e_0 | h_0
+[[0.9992 0.0008]
+ [0.5656 0.4344]]
+
+cpt2 (tie_id emission__(2, 2)): e_0 | h_0
+[[0.9875 0.0125]
+ [0.1020 0.8980]]
+
+thres1 (tie_id emission__(2, 2)): e_0 | h_0
+[0.6571 0.3583]
+
+thres1 (tie_id emission__(2, 2)): e_1 | h_1
+[0.8237 0.4542]
+
+thres1 (tie_id emission__(2, 2)): e_2 | h_2
+[0.7118 0.3244]
+
+thres1 (tie_id emission__(2, 2)): e_3 | h_3
+[0.5048 0.5125]
+
+thres1 (tie_id emission__(2, 2)): e_4 | h_4
+[0.1755 0.8804]
+
+thres1 (tie_id emission__(2, 2)): e_5 | h_5
+[0.7229 0.6295]
+
+thres1 (tie_id emission__(2, 2)): e_6 | h_6
+[0.6429 0.3413]
+
+thres1 (tie_id emission__(2, 2)): e_7 | h_7
+[0.3286 0.4647]
+
+thres1 (tie_id emission__(2, 2)): e_8 | h_8
+[0.9382 0.0755]
+

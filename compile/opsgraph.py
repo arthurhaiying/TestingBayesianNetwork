@@ -222,12 +222,7 @@ class OpsGraph:
         vars      = self.nodes2vars(nodes,add_batch)
         var       = vars[-1]            # dimension of var
         assert node.id == var.id        # var has last dimension in cpt
-        if sel_type in ops.SelectCptOpV2.sel_types:
-            op = ops.SelectCptOpV2(var,vars,cpt_ops,threshold_ops,posterior,sel_type)
-        else: 
-            raise NotImplementedError("should not use type %s" %sel_type)
-            op = ops.SelectCptOpV3(var,vars,cpt_ops,threshold_ops,posterior,sel_type)
-
+        op = ops.SelectCptOpV2(var,vars,cpt_ops,threshold_ops,posterior,sel_type)
         self.ops.append(op)
         return op
         

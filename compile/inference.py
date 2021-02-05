@@ -179,7 +179,7 @@ def __parents_posterior(var,scontext,jt,og): # var is a tbn node
     parents = set(var.parents) # we need the posterior on these vars
     if var.name == 'dummy':
         pcards = tuple(len(p.values) for p in var.parents)
-        print("parents card: ", pcards)
+        #print("parents card: ", pcards)
     if view.empty:             # pruned tbn has only one node (var)
         assert not parents
         # -testing node lost its parents as they have one value

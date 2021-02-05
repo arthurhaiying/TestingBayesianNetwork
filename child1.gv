@@ -1,0 +1,31 @@
+digraph {
+	rankdir=TD
+	PKC [shape=circle style=filled]
+	Plcg [shape=circle]
+	PKA [shape=circle]
+	PIP3 [shape=circle]
+	Jnk [shape=circle style=filled]
+	P38 [shape=circle style=filled]
+	Raf [shape=circle]
+	PIP2 [shape=circle]
+	Mek [shape=circle]
+	Erk [shape=circle]
+	Akt [shape=circle]
+	PKC -> PKA
+	PKC -> Jnk
+	PKC -> P38
+	PKC -> Raf
+	PKC -> Mek
+	Plcg -> PIP3
+	Plcg -> PIP2
+	PKA -> Jnk
+	PKA -> P38
+	PKA -> Raf
+	PKA -> Mek
+	PKA -> Erk
+	PKA -> Akt
+	PIP3 -> PIP2
+	Raf -> Mek
+	Mek -> Erk
+	Erk -> Akt
+}

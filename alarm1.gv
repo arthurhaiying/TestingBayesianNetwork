@@ -1,0 +1,86 @@
+digraph {
+	rankdir=TD
+	HYPOVOLEMIA [shape=circle]
+	LVFAILURE [shape=circle]
+	ERRLOWOUTPUT [shape=circle]
+	ERRCAUTER [shape=circle]
+	INSUFFANESTH [shape=circle]
+	ANAPHYLAXIS [shape=circle]
+	KINKEDTUBE [shape=circle]
+	FIO2 [shape=circle]
+	PULMEMBOLUS [shape=circle]
+	INTUBATION [shape=circle]
+	DISCONNECT [shape=circle]
+	MINVOLSET [shape=circle]
+	HISTORY [shape=circle]
+	LVEDVOLUME [shape=circle]
+	STROKEVOLUME [shape=circle]
+	TPR [shape=circle]
+	PAP [shape=circle]
+	SHUNT [shape=circle]
+	VENTMACH [shape=circle]
+	CVP [shape=circle]
+	PCWP [shape=circle]
+	VENTTUBE [shape=circle]
+	PRESS [shape=circle]
+	VENTLUNG [shape=circle]
+	MINVOL [shape=circle]
+	VENTALV [shape=circle]
+	PVSAT [shape=circle]
+	ARTCO2 [shape=circle]
+	SAO2 [shape=circle]
+	EXPCO2 [shape=circle]
+	CATECHOL [shape=circle]
+	HR [shape=circle]
+	HRBP [shape=circle]
+	HREKG [shape=circle]
+	HRSAT [shape=circle]
+	CO [shape=circle]
+	BP [shape=circle]
+	HYPOVOLEMIA -> LVEDVOLUME
+	HYPOVOLEMIA -> STROKEVOLUME
+	LVFAILURE -> HISTORY
+	LVFAILURE -> LVEDVOLUME
+	LVFAILURE -> STROKEVOLUME
+	ERRLOWOUTPUT -> HRBP
+	ERRCAUTER -> HREKG
+	ERRCAUTER -> HRSAT
+	INSUFFANESTH -> CATECHOL
+	ANAPHYLAXIS -> TPR
+	KINKEDTUBE -> PRESS
+	KINKEDTUBE -> VENTLUNG
+	FIO2 -> PVSAT
+	PULMEMBOLUS -> PAP
+	PULMEMBOLUS -> SHUNT
+	INTUBATION -> SHUNT
+	INTUBATION -> PRESS
+	INTUBATION -> VENTLUNG
+	INTUBATION -> MINVOL
+	INTUBATION -> VENTALV
+	DISCONNECT -> VENTTUBE
+	MINVOLSET -> VENTMACH
+	LVEDVOLUME -> CVP
+	LVEDVOLUME -> PCWP
+	STROKEVOLUME -> CO
+	TPR -> CATECHOL
+	TPR -> BP
+	SHUNT -> SAO2
+	VENTMACH -> VENTTUBE
+	VENTTUBE -> PRESS
+	VENTTUBE -> VENTLUNG
+	VENTLUNG -> MINVOL
+	VENTLUNG -> VENTALV
+	VENTLUNG -> EXPCO2
+	VENTALV -> PVSAT
+	VENTALV -> ARTCO2
+	PVSAT -> SAO2
+	ARTCO2 -> EXPCO2
+	ARTCO2 -> CATECHOL
+	SAO2 -> CATECHOL
+	CATECHOL -> HR
+	HR -> HRBP
+	HR -> HREKG
+	HR -> HRSAT
+	HR -> CO
+	CO -> BP
+}

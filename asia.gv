@@ -1,0 +1,19 @@
+digraph {
+	rankdir=TD
+	asia [shape=circle]
+	smoke [shape=circle]
+	tub [shape=circle]
+	lung [shape=circle]
+	bronc [shape=circle style=filled]
+	either [shape=circle]
+	xray [shape=circle style=filled]
+	dysp [shape=circle]
+	asia -> tub
+	smoke -> lung
+	smoke -> bronc
+	tub -> either
+	lung -> either
+	bronc -> dysp
+	either -> xray
+	either -> dysp
+}

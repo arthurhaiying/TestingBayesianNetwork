@@ -1,0 +1,21 @@
+digraph HMM_12_copy {
+	rankdir=TD
+	node [shape=circle]
+	node [fontsize=20]
+	node [style=filled]
+	v0 [color=black fillcolor=transparent fontcolor=black]
+	v1 [color=black fillcolor=transparent fontcolor=black]
+	v0 -> v1 [color=black]
+	v2 [color=black fillcolor=transparent fontcolor=black]
+	v0 -> v2 [color=black]
+	v3 [color=black fillcolor=transparent fontcolor=black]
+	v1 -> v3 [color=black]
+	v4 [color=black fillcolor=transparent fontcolor=black]
+	v1 -> v4 [color=black]
+	v5 [color=black fillcolor=transparent fontcolor=black]
+	v3 -> v5 [color=black]
+	v6 [color=black fillcolor=transparent fontcolor=black]
+	v3 -> v6 [color=black]
+	v7 [color=black fillcolor=transparent fontcolor=black]
+	v5 -> v7 [color=black]
+}

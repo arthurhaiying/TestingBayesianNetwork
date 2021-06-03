@@ -21,7 +21,7 @@ if __name__ == '__main__':
 
 
 from examples.polytreeTBN.config import *
-
+from examples.polytreeTBN.sample import sample
 
 # posteriors smaller than this value is ignored
 
@@ -403,10 +403,10 @@ def do_one_experiment(dag,bn,cards,scards,q,e,x):
     # direct sample training set
     ecards = list(map(lambda x: cards[x], e))
     qcard = cards[q]
-    num_examples = 1
-    for ecard in ecards:
-        num_examples *= ecard
-    num_examples *= EVIDENCE_FACTOR
+    num_examples = NUM_EXAMPLES
+    #for ecard in ecards:
+        #num_examples *= ecard
+    #num_examples *= EVIDENCE_FACTOR
 
     #evidences,marginals = direct_sample(bn,q,e,cards,num_examples=num_examples)
     evidences,marginals = direct_sample_mp(bn,q,e,cards,num_examples=num_examples)
@@ -474,20 +474,24 @@ def do_one_experiment(dag,bn,cards,scards,q,e,x):
     print("kl hand: %s kl learn: %s" %(kl_hand_list,kl_learn_list))
     return kl_hand_list,kl_learn_list
 
+MIN_CARDINALITY = 2
+MAX_CARDINALITY = 5
+ABSTRACT_CARDINALITY = 5
+NUM_NODES = 50
+NUM_ITERS = 200
+
+SIZE = 10
+ORDER = 3
+CARD = 3
+
+NUM_EXAMPLES = 1024
 
 
-def do_multiprocess_learn_polytree_tbn_experiment(num_trial):
+def do_multiprocess_learn_polytree_tbn_experiment(num_trial,dirpath):
     print("Start trial %d..." %num_trial)
     ''' step 1: sample true BN and query'''
-    random.seed(SEED + num_trial)
-    np.random.seed(SEED + num_trial)
-    ok = False
-    dag,q,e,x = None,None,None,None
-    while not ok:
-        # search a good query
-        dag = model.get_random_polytree(NUM_NODES,NUM_ITERS)
-        #dag,q,e,x = model.random_query(dag)
-        ok,q,e,x = model.random_query(dag)
+    bn,q,e,x = sample(NUM_NODES,MIN_CARDINALITY,ABSTRACT_CARDINALITY,NUM_ITERS,
+        True,0.8,NUM_EXAMPLES,num_trial,dirpath)
 
     bn,cards = model.sample_random_BN(dag,x) 
     scards = {node_x: cards[node_x]//2 for node_x in x}

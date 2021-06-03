@@ -1,0 +1,43 @@
+digraph {
+	rankdir=TD
+	node [fixedsize=true width=0.5]
+	0 [label=v0 shape=circle style=filled]
+	1 [label=v1 shape=circle]
+	2 [label=v2 shape=circle style=filled]
+	3 [label=v3 shape=circle style=filled]
+	4 [label=v4 shape=circle style=filled]
+	5 [label=v5 shape=circle]
+	6 [label=v6 shape=doublecircle width=0.4]
+	7 [label=v7 shape=circle style=filled]
+	8 [label=v8 shape=doublecircle width=0.4]
+	9 [label=v9 shape=circle]
+	10 [label=v10 shape=circle]
+	11 [label=v11 shape=circle style=filled]
+	12 [label=v12 shape=circle style=filled]
+	13 [label=v13 shape=circle style=filled]
+	14 [label=v14 shape=circle]
+	15 [label=v15 shape=circle style=filled]
+	16 [label=v16 shape=circle]
+	17 [label=v17 shape=circle style=filled]
+	18 [label=v18 shape=circle]
+	19 [label=v19 shape=circle style=filled]
+	1 -> 14
+	2 -> 18
+	4 -> 0
+	6 -> 5
+	7 -> 11
+	7 -> 9
+	8 -> 3
+	8 -> 6
+	8 -> 16
+	9 -> 14
+	9 -> 0
+	10 -> 17
+	10 -> 19
+	12 -> 10
+	14 -> 13
+	14 -> 10
+	14 -> 15
+	16 -> 0
+	18 -> 1
+}

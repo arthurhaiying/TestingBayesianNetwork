@@ -1,0 +1,41 @@
+
+===Rectangle: evaluating AC for label===
+output logged into logs/exp/
+
+==rectangle 10x10 images: 2640 total
+
+compiling AC: 9.9 sec
+  AC size 3,522,377
+  (sep) binary rank 13.3, rank 4
+evaluating AC:
+  batch size 64
+  8.36 sec, 3.2 ms per example
+
+==rectangle 12x12 images: 5434 total
+
+compiling AC: 10.1 sec
+  AC size 10,491,191
+  (sep) binary rank 14.3, rank 4
+evaluating AC:
+  batch size 64
+  46.61 sec, 8.6 ms per example
+
+==rectangle 14x14 images: 10010 total
+
+compiling AC: 16.1 sec
+  AC size 26,420,665
+  (sep) binary rank 15.2, rank 4
+evaluating AC:
+  batch size 64
+  226.27 sec, 22.6 ms per example
+
+==rectangle 16x16 images: 17000 total
+
+compiling AC: 18.6 sec
+  AC size 58,826,543
+  (sep) binary rank 16.0, rank 4
+evaluating AC:
+  batch size 64
+  804.80 sec, 47.3 ms per example
+
+Total Time: 1150.729 sec

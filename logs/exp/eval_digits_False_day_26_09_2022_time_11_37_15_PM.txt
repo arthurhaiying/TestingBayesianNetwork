@@ -1,0 +1,37 @@
+
+===Digits: evaluating AC for range(0, 10)===
+output logged into logs/exp/
+
+==digits 10x10 images: 280 total
+
+compiling AC: 43.3 sec
+  AC size 2,258,488
+  (sep) binary rank 13.1, rank 7
+evaluating AC:  batch_size 64
+  3.35 sec, 12.0 ms per example
+
+==digits 12x12 images: 540 total
+
+compiling AC: 56.8 sec
+  AC size 11,658,691
+  (sep) binary rank 15.7, rank 7
+evaluating AC:  batch_size 64
+  13.82 sec, 25.6 ms per example
+
+==digits 14x14 images: 990 total
+
+compiling AC: 82.9 sec
+  AC size 32,098,833
+  (sep) binary rank 17.4, rank 8
+evaluating AC:  batch_size 64
+  68.41 sec, 69.1 ms per example
+
+==digits 16x16 images: 1690 total
+
+compiling AC: 139.3 sec
+  AC size 95,148,441
+  (sep) binary rank 18.3, rank 8
+evaluating AC:  batch_size 64
+  301.57 sec, 178.4 ms per example
+
+Total Time: 712.603 sec

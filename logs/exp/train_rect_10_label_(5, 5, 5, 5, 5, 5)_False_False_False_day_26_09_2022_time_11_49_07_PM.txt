@@ -1,0 +1,38 @@
+
+rectangle 10 x 10, output label, data_sizes (25, 50, 100, 250, 500, 1000), testing False, use_bk False, tie False
+
+fixed batch size 32
+output logged into logs/exp/
+circuit size 2,833,471, paramater count 5220
+
+==data size 25
+  train 25, test 1000
+  accuracy (5): 58.40 66.00 57.20 57.50 50.60
+accuracy mean 57.94, std 5.47
+
+==data size 50
+  train 50, test 1000
+  accuracy (5): 73.10 71.20 63.20 53.50 68.10
+accuracy mean 65.82, std 7.84
+
+==data size 100
+  train 100, test 1000
+  accuracy (5): 79.40 77.40 73.90 76.80 82.30
+accuracy mean 77.96, std 3.12
+
+==data size 250
+  train 250, test 1000
+  accuracy (5): 77.50 78.90 87.70 81.80 83.10
+accuracy mean 81.80, std 3.98
+
+==data size 500
+  train 500, test 1000
+  accuracy (5): 84.00 84.30 84.70 87.40 87.80
+accuracy mean 85.64, std 1.81
+
+==data size 1000
+  train 1000, test 1000
+  accuracy (5): 85.70 87.20 87.80 89.00 87.60
+accuracy mean 87.46, std 1.19
+
+Total Time: 3053.501 sec
